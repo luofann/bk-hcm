@@ -113,9 +113,10 @@ func convCvmGetResult[T corecvm.Extension](base *corecvm.BaseCvm, extJson tablet
 	*corecvm.Cvm[T], error) {
 
 	extension := new(T)
-	err := json.UnmarshalFromString(string(extJson), &extension)
-	if err != nil {
-		return nil, fmt.Errorf("UnmarshalFromString cvm json extension failed, err: %v", err)
+	if len(extJson) != 0 {
+		if err := json.UnmarshalFromString(string(extJson), &extension); err != nil {
+			return nil, fmt.Errorf("UnmarshalFromString cvm json extension failed, err: %v", err)
+		}
 	}
 
 	return &corecvm.Cvm[T]{
@@ -166,7 +167,7 @@ func convTableToBaseCvm(one *tablecvm.Table) *corecvm.BaseCvm {
 func (svc *cvmSvc) getCvmByID(kt *kit.Kit, id string) (*tablecvm.Table, error) {
 	opt := &types.ListOption{
 		Filter: tools.EqualExpression("id", id),
-		Page:   core.DefaultBasePage,
+		Page:   core.NewDefaultBasePage(),
 	}
 	result, err := svc.dao.Cvm().List(kt, opt)
 	if err != nil {

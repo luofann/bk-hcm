@@ -17,6 +17,7 @@
  * to the current version of the project delivered to anyone in the future.
  */
 
+// Package cvm ...
 package cvm
 
 import (
@@ -46,6 +47,7 @@ func InitCvmService(c *capability.Capability) {
 
 	h.Add("GetCvm", http.MethodGet, "/cvms/{id}", svc.GetCvm)
 	h.Add("ListCvmExt", http.MethodPost, "/cvms/list", svc.ListCvm)
+	h.Add("CreateCvm", http.MethodPost, "/cvms/create", svc.CreateCvm)
 	h.Add("BatchDeleteCvm", http.MethodDelete, "/cvms/batch", svc.BatchDeleteCvm)
 	h.Add("AssignCvmToBiz", http.MethodPost, "/cvms/assign/bizs", svc.AssignCvmToBiz)
 	h.Add("BatchStartCvm", http.MethodPost, "/cvms/batch/start", svc.BatchStartCvm)

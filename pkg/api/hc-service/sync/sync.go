@@ -17,9 +17,20 @@
  * to the current version of the project delivered to anyone in the future.
  */
 
+// Package sync ...
 package sync
 
 import "hcm/pkg/criteria/validator"
+
+// TCloudRegionSyncReq tcloud sync request
+type TCloudRegionSyncReq struct {
+	AccountID string `json:"account_id" validate:"required"`
+}
+
+// Validate tcloud sync request.
+func (req *TCloudRegionSyncReq) Validate() error {
+	return validator.Validate.Struct(req)
+}
 
 // TCloudSyncReq tcloud sync request
 type TCloudSyncReq struct {
@@ -32,6 +43,16 @@ func (req *TCloudSyncReq) Validate() error {
 	return validator.Validate.Struct(req)
 }
 
+// AwsRegionSyncReq aws sync request
+type AwsRegionSyncReq struct {
+	AccountID string `json:"account_id" validate:"required"`
+}
+
+// Validate aws sync request.
+func (req *AwsRegionSyncReq) Validate() error {
+	return validator.Validate.Struct(req)
+}
+
 // AwsSyncReq aws sync request
 type AwsSyncReq struct {
 	AccountID string `json:"account_id" validate:"required"`
@@ -40,6 +61,16 @@ type AwsSyncReq struct {
 
 // Validate aws sync request.
 func (req *AwsSyncReq) Validate() error {
+	return validator.Validate.Struct(req)
+}
+
+// HuaWeiRegionSyncReq huawei sync request
+type HuaWeiRegionSyncReq struct {
+	AccountID string `json:"account_id" validate:"required"`
+}
+
+// Validate huawei sync request.
+func (req *HuaWeiRegionSyncReq) Validate() error {
 	return validator.Validate.Struct(req)
 }
 
@@ -89,12 +120,12 @@ func (req *GcpSyncReq) Validate() error {
 	return validator.Validate.Struct(req)
 }
 
-// GcpGlobalRegionResSyncReq gcp vpc sync request
+// GcpGlobalRegionResSyncReq gcp sync request
 type GcpGlobalRegionResSyncReq struct {
 	AccountID string `json:"account_id" validate:"required"`
 }
 
-// Validate gcp vpc sync request.
+// Validate gcp sync request.
 func (req *GcpGlobalRegionResSyncReq) Validate() error {
 	return validator.Validate.Struct(req)
 }
@@ -131,6 +162,16 @@ func (req *GcpFireWallSyncReq) Validate() error {
 	return validator.Validate.Struct(req)
 }
 
+// AzureResourceGroupSyncReq azure sync request
+type AzureResourceGroupSyncReq struct {
+	AccountID string `json:"account_id" validate:"required"`
+}
+
+// Validate azure sync request.
+func (req *AzureResourceGroupSyncReq) Validate() error {
+	return validator.Validate.Struct(req)
+}
+
 // AzureSyncReq azure sync request
 type AzureSyncReq struct {
 	AccountID         string `json:"account_id" validate:"required"`
@@ -151,5 +192,16 @@ type AzureSubnetSyncReq struct {
 
 // Validate azure sync request.
 func (req *AzureSubnetSyncReq) Validate() error {
+	return validator.Validate.Struct(req)
+}
+
+// AzureImageReq azure image sync request
+type AzureImageReq struct {
+	AccountID string `json:"account_id" validate:"required"`
+	Region    string `json:"region" validate:"required"`
+}
+
+// Validate azure sync request.
+func (req *AzureImageReq) Validate() error {
 	return validator.Validate.Struct(req)
 }

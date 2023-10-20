@@ -20,8 +20,9 @@
 package huawei
 
 import (
-	proto "hcm/pkg/api/cloud-server/application"
+	csdisk "hcm/pkg/api/cloud-server/disk"
 	"hcm/pkg/criteria/enumor"
+	"hcm/pkg/thirdparty/itsm"
 )
 
 // PrepareReq ...
@@ -33,8 +34,8 @@ func (a *ApplicationOfCreateHuaWeiDisk) PrepareReq() error {
 func (a *ApplicationOfCreateHuaWeiDisk) GenerateApplicationContent() interface{} {
 	// 需要将Vendor也存储进去
 	return &struct {
-		*proto.HuaWeiDiskCreateReq `json:",inline"`
-		Vendor                     enumor.Vendor `json:"vendor"`
+		*csdisk.HuaWeiDiskCreateReq `json:",inline"`
+		Vendor                      enumor.Vendor `json:"vendor"`
 	}{
 		HuaWeiDiskCreateReq: a.req,
 		Vendor:              a.Vendor(),
@@ -44,4 +45,9 @@ func (a *ApplicationOfCreateHuaWeiDisk) GenerateApplicationContent() interface{}
 // PrepareReqFromContent ...
 func (a *ApplicationOfCreateHuaWeiDisk) PrepareReqFromContent() error {
 	return nil
+}
+
+// GetItsmApprover 获取itsm审批人
+func (a *ApplicationOfCreateHuaWeiDisk) GetItsmApprover(managers []string) []itsm.VariableApprover {
+	return a.GetItsmPlatformAndAccountApprover(managers, a.req.AccountID)
 }

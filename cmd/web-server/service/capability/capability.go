@@ -17,12 +17,14 @@
  * to the current version of the project delivered to anyone in the future.
  */
 
+// Package capability ...
 package capability
 
 import (
 	"hcm/pkg/client"
 	"hcm/pkg/iam/auth"
 	"hcm/pkg/thirdparty/esb"
+	"hcm/pkg/thirdparty/itsm"
 
 	"github.com/emicklei/go-restful/v3"
 )
@@ -33,4 +35,5 @@ type Capability struct {
 	ApiClient  *client.ClientSet
 	EsbClient  esb.Client
 	Authorizer auth.Authorizer
+	ItsmCli    itsm.Client
 }

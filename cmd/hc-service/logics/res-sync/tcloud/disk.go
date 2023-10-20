@@ -71,6 +71,12 @@ func (cli *client) Disk(kt *kit.Kit, params *SyncBaseParams, opt *SyncDiskOption
 	addSlice, updateMap, delCloudIDs := common.Diff[typesdisk.TCloudDisk, *disk.DiskExtResult[disk.TCloudDiskExtensionResult]](
 		diskFromCloud, diskFromDB, isDiskChange)
 
+	if len(delCloudIDs) > 0 {
+		if err := cli.deleteDisk(kt, params.AccountID, params.Region, delCloudIDs); err != nil {
+			return nil, err
+		}
+	}
+
 	if len(addSlice) > 0 {
 		if err = cli.createDisk(kt, params.AccountID, params.Region, addSlice); err != nil {
 			return nil, err
@@ -79,12 +85,6 @@ func (cli *client) Disk(kt *kit.Kit, params *SyncBaseParams, opt *SyncDiskOption
 
 	if len(updateMap) > 0 {
 		if err = cli.updateDisk(kt, params.AccountID, updateMap); err != nil {
-			return nil, err
-		}
-	}
-
-	if len(delCloudIDs) > 0 {
-		if err := cli.deleteDisk(kt, params.AccountID, params.Region, delCloudIDs); err != nil {
 			return nil, err
 		}
 	}
@@ -250,7 +250,7 @@ func (cli *client) listDiskFromCloud(kt *kit.Kit, params *SyncBaseParams) ([]typ
 			Limit:  adcore.TCloudQueryLimit,
 		},
 	}
-	result, err := cli.cloudCli.ListDiskNew(kt, opt)
+	result, err := cli.cloudCli.ListDisk(kt, opt)
 	if err != nil {
 		logs.Errorf("[%s] list disk from cloud failed, err: %v, account: %s, opt: %v, rid: %s", enumor.TCloud,
 			err, params.AccountID, opt, kt.Rid)
@@ -288,7 +288,7 @@ func (cli *client) listDiskFromDB(kt *kit.Kit, params *SyncBaseParams) (
 				},
 			},
 		},
-		Page: core.DefaultBasePage,
+		Page: core.NewDefaultBasePage(),
 	}
 	result, err := cli.dbCli.TCloud.ListDisk(kt.Ctx, kt.Header(), req)
 	if err != nil {

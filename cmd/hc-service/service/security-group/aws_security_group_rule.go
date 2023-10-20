@@ -22,6 +22,8 @@ package securitygroup
 import (
 	"fmt"
 
+	"github.com/aws/aws-sdk-go/service/ec2"
+
 	securitygrouprule "hcm/pkg/adaptor/types/security-group-rule"
 	"hcm/pkg/api/core"
 	corecloud "hcm/pkg/api/core/cloud"
@@ -33,8 +35,6 @@ import (
 	"hcm/pkg/dal/dao/tools"
 	"hcm/pkg/logs"
 	"hcm/pkg/rest"
-
-	"github.com/aws/aws-sdk-go/service/ec2"
 )
 
 // BatchCreateAwsSGRule batch create aws security group rule.
@@ -77,15 +77,7 @@ func (g *securityGroup) BatchCreateAwsSGRule(cts *rest.Contexts) (interface{}, e
 		opt.EgressRuleSet = make([]securitygrouprule.AwsCreate, 0, len(req.EgressRuleSet))
 
 		for _, rule := range req.EgressRuleSet {
-			opt.EgressRuleSet = append(opt.EgressRuleSet, securitygrouprule.AwsCreate{
-				IPv4Cidr:                   rule.IPv4Cidr,
-				IPv6Cidr:                   rule.IPv6Cidr,
-				Description:                rule.Memo,
-				FromPort:                   rule.FromPort,
-				ToPort:                     rule.ToPort,
-				Protocol:                   rule.Protocol,
-				CloudTargetSecurityGroupID: rule.CloudTargetSecurityGroupID,
-			})
+			opt.EgressRuleSet = append(opt.EgressRuleSet, convAwsRule(rule))
 		}
 	}
 
@@ -93,15 +85,7 @@ func (g *securityGroup) BatchCreateAwsSGRule(cts *rest.Contexts) (interface{}, e
 		opt.IngressRuleSet = make([]securitygrouprule.AwsCreate, 0, len(req.IngressRuleSet))
 
 		for _, rule := range req.IngressRuleSet {
-			opt.IngressRuleSet = append(opt.IngressRuleSet, securitygrouprule.AwsCreate{
-				IPv4Cidr:                   rule.IPv4Cidr,
-				IPv6Cidr:                   rule.IPv6Cidr,
-				Description:                rule.Memo,
-				FromPort:                   rule.FromPort,
-				ToPort:                     rule.ToPort,
-				Protocol:                   rule.Protocol,
-				CloudTargetSecurityGroupID: rule.CloudTargetSecurityGroupID,
-			})
+			opt.IngressRuleSet = append(opt.IngressRuleSet, convAwsRule(rule))
 		}
 	}
 	rules, err := client.CreateSecurityGroupRule(cts.Kit, opt)
@@ -110,6 +94,17 @@ func (g *securityGroup) BatchCreateAwsSGRule(cts *rest.Contexts) (interface{}, e
 		return nil, err
 	}
 
+	createReq := convAwsDSReq(rules, req.AccountID, sg.ID, sg.Region)
+	result, err := g.dataCli.Aws.SecurityGroup.BatchCreateSecurityGroupRule(cts.Kit.Ctx, cts.Kit.Header(),
+		createReq, sgID)
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func convAwsDSReq(rules []*ec2.SecurityGroupRule, accountID, sgID, region string) *protocloud.AwsSGRuleCreateReq {
 	list := make([]protocloud.AwsSGRuleBatchCreate, 0, len(rules))
 	for _, rule := range rules {
 		one := protocloud.AwsSGRuleBatchCreate{
@@ -123,9 +118,9 @@ func (g *securityGroup) BatchCreateAwsSGRule(cts *rest.Contexts) (interface{}, e
 			CloudPrefixListID:    rule.PrefixListId,
 			CloudSecurityGroupID: *rule.GroupId,
 			CloudGroupOwnerID:    *rule.GroupOwnerId,
-			AccountID:            req.AccountID,
-			Region:               sg.Region,
-			SecurityGroupID:      sg.ID,
+			AccountID:            accountID,
+			Region:               region,
+			SecurityGroupID:      sgID,
 		}
 
 		if *rule.IsEgress {
@@ -144,12 +139,20 @@ func (g *securityGroup) BatchCreateAwsSGRule(cts *rest.Contexts) (interface{}, e
 	createReq := &protocloud.AwsSGRuleCreateReq{
 		Rules: list,
 	}
-	result, err := g.dataCli.Aws.SecurityGroup.BatchCreateSecurityGroupRule(cts.Kit.Ctx, cts.Kit.Header(), createReq, sgID)
-	if err != nil {
-		return nil, err
-	}
 
-	return result, nil
+	return createReq
+}
+
+func convAwsRule(rule proto.AwsSGRuleCreate) securitygrouprule.AwsCreate {
+	return securitygrouprule.AwsCreate{
+		IPv4Cidr:                   rule.IPv4Cidr,
+		IPv6Cidr:                   rule.IPv6Cidr,
+		Description:                rule.Memo,
+		FromPort:                   rule.FromPort,
+		ToPort:                     rule.ToPort,
+		Protocol:                   rule.Protocol,
+		CloudTargetSecurityGroupID: rule.CloudTargetSecurityGroupID,
+	}
 }
 
 // UpdateAwsSGRule update aws security group rule.
@@ -240,7 +243,7 @@ func (g *securityGroup) getAwsSGRuleByID(cts *rest.Contexts, id string, sgID str
 
 	listReq := &protocloud.AwsSGRuleListReq{
 		Filter: tools.EqualExpression("id", id),
-		Page:   core.DefaultBasePage,
+		Page:   core.NewDefaultBasePage(),
 	}
 	listResp, err := g.dataCli.Aws.SecurityGroup.ListSecurityGroupRule(cts.Kit.Ctx, cts.Kit.Header(), listReq, sgID)
 	if err != nil {
@@ -354,7 +357,7 @@ func (g *securityGroup) diffAwsSGRuleSyncAdd(cts *rest.Contexts, ids []string,
 }
 
 // genAwsRules gen aws rule list
-func genAwsRulesList(rules []*ec2.SecurityGroupRule, req *proto.SecurityGroupSyncReq,
+func genAwsRulesList(rules []securitygrouprule.AwsSGRule, req *proto.SecurityGroupSyncReq,
 	id string) []protocloud.AwsSGRuleBatchCreate {
 	list := make([]protocloud.AwsSGRuleBatchCreate, 0, len(rules))
 	for _, rule := range rules {

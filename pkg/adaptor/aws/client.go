@@ -38,6 +38,11 @@ const (
 	ErrDryRunSuccess      = "DryRunOperation: Request would have succeeded, but DryRun flag is set"
 	ErrSGNotFound         = "InvalidGroup.NotFound"
 	ErrRouteTableNotFound = "InvalidRouteTableID.NotFound"
+	ErrImageNotFound      = "InvalidAMIID.NotFound"
+	ErrVpcNotFound        = "InvalidVpcID.NotFound"
+	ErrSubnetNotFound     = "InvalidSubnetID.NotFound"
+	ErrDiskNotFound       = "InvalidVolume.NotFound"
+	ErrCvmNotFound        = "InvalidInstanceID.NotFound"
 )
 
 type clientSet struct {

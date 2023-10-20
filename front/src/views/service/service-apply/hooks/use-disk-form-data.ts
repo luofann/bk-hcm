@@ -5,6 +5,7 @@ import type { Cond } from './use-condtion';
 import { Message } from 'bkui-vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
+import { useWhereAmI } from '@/hooks/useWhereAmI';
 
 const { BK_HCM_AJAX_URL_PREFIX } = window.PROJECT_CONFIG;
 
@@ -120,8 +121,8 @@ export default (cond: Cond) => {
   });
 
   const getSaveData = () => {
-    console.log(formData, '---formData')
-    const { purchase_duration, auto_renew, ...saveFormData } = formData
+    console.log(formData, '---formData');
+    const { purchase_duration, auto_renew, ...saveFormData } = formData;
     const saveData: IDiskSaveData = {
       ...saveFormData,
       bk_biz_id: cond.bizId,
@@ -133,8 +134,8 @@ export default (cond: Cond) => {
     if (cond.vendor === VendorEnum.TCLOUD) {
       saveData.disk_charge_prepaid = saveFormData.disk_charge_type === 'PREPAID' ? {
         period: purchase_duration.count * (purchase_duration.unit === 'y' ? 12 : 1),
-        renew_flag: auto_renew ? 'NOTIFY_AND_AUTO_RENEW' : 'NOTIFY_AND_MANUAL_RENEW'
-      } : undefined
+        renew_flag: auto_renew ? 'NOTIFY_AND_AUTO_RENEW' : 'NOTIFY_AND_MANUAL_RENEW',
+      } : undefined;
     }
 
     if (cond.vendor === VendorEnum.HUAWEI) {
@@ -142,7 +143,7 @@ export default (cond: Cond) => {
         period_num: purchase_duration.count,
         period_type: purchase_duration.unit === 'y' ? 'year' : 'month',
         is_auto_renew: auto_renew ? 'ture' : 'false',
-      } : undefined
+      } : undefined;
     }
 
     if (cond.vendor === VendorEnum.AZURE) {
@@ -152,6 +153,7 @@ export default (cond: Cond) => {
     return saveData;
   };
 
+  const { isResourcePage } = useWhereAmI();
   const submitting = ref(false);
   const handleFormSubmit = async () => {
     await formRef.value.validate();
@@ -159,16 +161,22 @@ export default (cond: Cond) => {
     // console.log(saveData, '-----saveData');
     try {
       submitting.value = true;
-      await http.post(`${BK_HCM_AJAX_URL_PREFIX}/api/v1/cloud/vendors/${cond.vendor}/applications/types/create_disk`, saveData);
+      const url = isResourcePage
+        ? `${BK_HCM_AJAX_URL_PREFIX}/api/v1/cloud/disks/create`
+        : `${BK_HCM_AJAX_URL_PREFIX}/api/v1/cloud/vendors/${cond.vendor}/applications/types/create_disk`;
+      await http.post(url, saveData);
 
       Message({
         theme: 'success',
         message: t('提交成功'),
       });
 
-      router.push({
-        path: '/service/my-apply',
-      });
+      if (isResourcePage) router.back();
+      else {
+        router.push({
+          path: '/service/my-apply',
+        });
+      }
     } catch (err) {
       console.error(err);
     } finally {

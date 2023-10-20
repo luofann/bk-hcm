@@ -12,7 +12,8 @@
         <bk-checkbox v-model="isAccurate" class="pr20">
           {{t('精确')}}
         </bk-checkbox>
-        <bk-search-select class="bg-white w280" :conditions="[]" v-model="searchValue" :data="searchData"></bk-search-select>
+        <bk-search-select class="bg-white w280" :conditions="[]" v-model="searchValue" :data="searchData">
+        </bk-search-select>
       </div>
     </div>
     <bk-loading
@@ -22,11 +23,16 @@
         class="table-layout"
         :data="tableData"
         remote-pagination
-        :pagination="pagination"
+        :pagination="{
+          count: pageCount,
+          limit: memoPageSize,
+          current: memoPageIndex
+        }"
         show-overflow-tooltip
         @page-value-change="handlePageValueChange"
         @page-limit-change="handlePageLimitChange"
         row-hover="auto"
+        row-key="id"
       >
         <bk-table-column
           label="ID"
@@ -45,6 +51,17 @@
               @click="handleJump('accountDetail', props?.row.id, true)">{{props?.row.name}}</bk-button>
           </template>
         </bk-table-column>
+
+        <bk-table-column
+          label="账号类型"
+          prop="type"
+          sort
+        >
+          <template #default="props">
+            {{AccountType[props?.row.type]}}
+          </template>
+        </bk-table-column>
+
         <bk-table-column
           :label="t('云厂商')"
           prop="vendor"
@@ -54,13 +71,25 @@
             {{CloudType[props?.row?.vendor]}}
           </template>
         </bk-table-column>
+
         <bk-table-column
-          :label="t('类型')"
-          prop="type"
+          label="站点类型"
+          prop="site"
           sort
         >
           <template #default="props">
-            {{AccountType[props?.row.type]}}
+            {{SITE_TYPE_MAP[props?.row.site]}}
+          </template>
+        </bk-table-column>
+        <bk-table-column
+          label="所属业务"
+          prop="bk_biz_ids"
+          sort
+        >
+          <template #default="props">
+            {{
+              props?.row?.bk_biz_ids?.join(',')?.split(',')?.map((v: string) => getNameFromBusinessMap(+v))?.join(',')
+            }}
           </template>
         </bk-table-column>
         <bk-table-column
@@ -71,6 +100,18 @@
           <template #default="props">
             {{props?.row.managers?.join(',')}}
           </template>
+        </bk-table-column>
+        <bk-table-column
+          label="创建人"
+          prop="creator"
+          sort
+        >
+        </bk-table-column>
+        <bk-table-column
+          label="修改人"
+          prop="reviser"
+          sort
+        >
         </bk-table-column>
         <bk-table-column
           :label="t('余额')"
@@ -88,6 +129,12 @@
           <template #default="props">
             {{props?.row.created_at}}
           </template>
+        </bk-table-column>
+        <bk-table-column
+          label="修改时间"
+          prop="updated_at"
+          sort
+        >
         </bk-table-column>
         <bk-table-column
           :label="t('备注')"
@@ -156,15 +203,18 @@
 </template>
 
 <script lang="ts">
-import { reactive, watch, toRefs, defineComponent, onMounted } from 'vue';
+import { reactive, watch, toRefs, defineComponent, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAccountStore } from '@/store';
 import rightArrow from '@/assets/image/right-arrow.png';
 import { Message } from 'bkui-vue';
 import { CloudType, AccountType } from '@/typings';
-import { VENDORS } from '@/common/constant';
+import { ACCOUNT_TYPES, SITE_TYPES, SITE_TYPE_MAP, VENDORS } from '@/common/constant';
 import { useVerify } from '@/hooks';
+import { useMemoPagination, DEFAULT_PAGE_INDEX, DEFAULT_PAGE_SIZE } from '@/hooks/useMemoPagination';
+import { useBusinessMapStore } from '@/store/useBusinessMap';
+
 
 export default defineComponent({
   name: 'AccountManageList',
@@ -172,7 +222,14 @@ export default defineComponent({
     const { t } = useI18n();
     const router = useRouter();
     const accountStore = useAccountStore();
-
+    const { getNameFromBusinessMap, businessMap } = useBusinessMapStore();
+    const {
+      setMemoPageSize,
+      setMemoPageIndex,
+      memoPageIndex,
+      memoPageSize,
+      memoPageStart,
+    } = useMemoPagination();
     const state = reactive({
       isAccurate: false,    // 是否精确
       searchValue: [],
@@ -180,21 +237,36 @@ export default defineComponent({
         {
           name: '名称',
           id: 'name',
-        }, {
+        },
+        {
+          name: '账号类型',
+          id: 'type',
+          children: ACCOUNT_TYPES,
+        },
+        {
           name: '云厂商',
           id: 'vendor',
           children: VENDORS,
-        }, {
+        },
+        {
+          name: '站点类型',
+          id: 'site',
+          children: SITE_TYPES,
+        },
+        {
           name: '负责人',
           id: 'managers',
         },
+        {
+          name: '创建人',
+          id: 'creator',
+        },
+        {
+          name: '修改人',
+          id: 'reviser',
+        },
       ],
       tableData: [],
-      pagination: {
-        count: 0,
-        current: 1,
-        limit: 10,
-      },
       showDeleteBox: false,
       deleteBoxTitle: '',
       syncTitle: t('同步'),
@@ -207,6 +279,8 @@ export default defineComponent({
       type: '',
       btnLoading: false,
     });
+
+    const pageCount = ref(0);
 
     onMounted(async () => {
       /* 获取账号列表接口 */
@@ -233,7 +307,7 @@ export default defineComponent({
         },
       };
       const res = await accountStore.getAccountList(params);
-      state.pagination.count = res?.data.count || 0;
+      pageCount.value = res?.data.count || 0;
     };
 
     const getAccountList = async () => {
@@ -243,8 +317,8 @@ export default defineComponent({
           filter: state.filter,
           page: {
             count: false,
-            limit: state.pagination.limit,
-            start: state.pagination.limit * (state.pagination.current - 1),
+            limit: memoPageSize.value,
+            start: memoPageStart.value,
             sort: 'created_at',
             order: 'DESC',
           },
@@ -261,7 +335,7 @@ export default defineComponent({
     // 搜索数据
     watch(
       () => state.searchValue,
-      (val) => {
+      (val, oldVal) => {
         console.log('val', val);
         state.filter.rules = val.reduce((p, v) => {
           if (v.type === 'condition') {
@@ -284,11 +358,11 @@ export default defineComponent({
           }
           return p;
         }, []);
-        state.pagination = {
-          count: 0,
-          current: 1,
-          limit: 10,
-        };
+        pageCount.value = 0;
+        if (oldVal !== undefined) {
+          setMemoPageIndex(DEFAULT_PAGE_INDEX);
+          setMemoPageSize(DEFAULT_PAGE_SIZE);
+        }
         /* 获取账号列表接口 */
         getListCount(); // 数量
         getAccountList(); // 列表
@@ -309,10 +383,9 @@ export default defineComponent({
       },
     );
 
-
     const init = () => {
-      state.pagination.current = 1;
-      state.pagination.limit = 10;
+      setMemoPageIndex(DEFAULT_PAGE_INDEX);
+      setMemoPageSize(DEFAULT_PAGE_SIZE);
       state.isAccurate = false;
       state.searchValue = [];
       getAccountList();
@@ -378,14 +451,14 @@ export default defineComponent({
       }
     };
 
-    // 处理翻页
     const handlePageLimitChange = (limit: number) => {
-      state.pagination.limit = limit;
+      setMemoPageSize(limit);
+      setMemoPageIndex(DEFAULT_PAGE_INDEX);
       getAccountList();
     };
 
     const handlePageValueChange = (value: number) => {
-      state.pagination.current = value;
+      setMemoPageIndex(value);
       getAccountList();
     };
 
@@ -405,6 +478,12 @@ export default defineComponent({
       handlePageValueChange,
       handleDialogCancel,
       t,
+      pageCount,
+      memoPageIndex,
+      memoPageSize,
+      SITE_TYPE_MAP,
+      getNameFromBusinessMap,
+      businessMap,
     };
   },
 });

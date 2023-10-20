@@ -30,7 +30,7 @@ import (
 	synchuawei "hcm/cmd/hc-service/logics/res-sync/huawei"
 	synctcloud "hcm/cmd/hc-service/logics/res-sync/tcloud"
 	cloudclient "hcm/cmd/hc-service/service/cloud-adaptor"
-	"hcm/pkg/adaptor/types"
+	"hcm/pkg/adaptor/types/subnet"
 	"hcm/pkg/api/core"
 	cloudcore "hcm/pkg/api/core/cloud"
 	protocloud "hcm/pkg/api/data-service/cloud"
@@ -76,11 +76,11 @@ func (c SubnetCreateOptions[T]) Validate() error {
 
 // AzureSubnetSyncOptions sync azure subnet options.
 type AzureSubnetSyncOptions struct {
-	BkBizID       int64               `validate:"required"`
-	AccountID     string              `validate:"required"`
-	CloudVpcID    string              `validate:"required"`
-	ResourceGroup string              `validate:"required"`
-	Subnets       []types.AzureSubnet `validate:"min=1,max=100"`
+	BkBizID       int64                    `validate:"required"`
+	AccountID     string                   `validate:"required"`
+	CloudVpcID    string                   `validate:"required"`
+	ResourceGroup string                   `validate:"required"`
+	Subnets       []adtysubnet.AzureSubnet `validate:"min=1,max=100"`
 }
 
 // Validate AzureSubnetSyncOptions.
@@ -194,7 +194,7 @@ func QueryVpcIDsAndSyncForGcp(kt *kit.Kit, adaptor *cloudclient.CloudAdaptorClie
 				filter.AtomRule{Field: "extension.self_link", Op: filter.JSONIn.Factory(), Value: sls},
 			},
 		},
-		Page:   core.DefaultBasePage,
+		Page:   core.NewDefaultBasePage(),
 		Fields: []string{"id", "cloud_id", "extension"},
 	}
 	result, err := dataCli.Gcp.Vpc.ListVpcExt(kt.Ctx, kt.Header(), listReq)
@@ -249,7 +249,7 @@ func QueryVpcIDsAndSyncForGcp(kt *kit.Kit, adaptor *cloudclient.CloudAdaptorClie
 				filter.AtomRule{Field: "extension.self_link", Op: filter.JSONIn.Factory(), Value: notExistSelfLink},
 			},
 		},
-		Page:   core.DefaultBasePage,
+		Page:   core.NewDefaultBasePage(),
 		Fields: []string{"id", "cloud_id", "extension"},
 	}
 	notExistResult, err := dataCli.Gcp.Vpc.ListVpcExt(kt.Ctx, kt.Header(), listReq)
@@ -291,7 +291,7 @@ func QuerySecurityGroupIDsAndSync(kt *kit.Kit, adaptor *cloudclient.CloudAdaptor
 
 	listReq := &protocloud.SecurityGroupListReq{
 		Filter: tools.ContainersExpression("cloud_id", cloudIDs),
-		Page:   core.DefaultBasePage,
+		Page:   core.NewDefaultBasePage(),
 		Field:  []string{"id", "cloud_id"},
 	}
 	result, err := dataCli.Global.SecurityGroup.ListSecurityGroup(kt.Ctx, kt.Header(), listReq)
@@ -324,7 +324,7 @@ func QuerySecurityGroupIDsAndSync(kt *kit.Kit, adaptor *cloudclient.CloudAdaptor
 	// 同步完，二次查询
 	listReq = &protocloud.SecurityGroupListReq{
 		Filter: tools.ContainersExpression("cloud_id", notExistCloudIDs),
-		Page:   core.DefaultBasePage,
+		Page:   core.NewDefaultBasePage(),
 		Field:  []string{"id", "cloud_id"},
 	}
 	notExistResult, err := dataCli.Global.SecurityGroup.ListSecurityGroup(kt.Ctx, kt.Header(), listReq)
@@ -535,7 +535,7 @@ func getVpcsFromDB(kt *kit.Kit, dataCli *dataclient.Client,
 
 	listReq := &core.ListReq{
 		Filter: tools.ContainersExpression("cloud_id", cloudVpcIDs),
-		Page:   core.DefaultBasePage,
+		Page:   core.NewDefaultBasePage(),
 		Fields: []string{"id", "cloud_id"},
 	}
 	result, err := dataCli.Global.Vpc.List(kt.Ctx, kt.Header(), listReq)

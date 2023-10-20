@@ -28,12 +28,13 @@ import {
 import useQueryList from '../../hooks/use-query-list';
 import useSelection from '../../hooks/use-selection';
 import useColumns from '../../hooks/use-columns';
-import useFilter from '@/views/resource/resource-manage/hooks/use-filter';
+import useFilter  from '@/views/resource/resource-manage/hooks/use-filter';
 import { HostCloudEnum, CloudType } from '@/typings';
 import {
   useResourceStore,
-  useAccountStore,
 } from '@/store';
+import HostOperations from '../../common/table/HostOperations';
+import { useBusinessMapStore } from '@/store/useBusinessMap';
 
 // use hook
 const {
@@ -47,14 +48,22 @@ const props = defineProps({
   isResourcePage: {
     type: Boolean,
   },
+  whereAmI: {
+    type: String,
+  },
 });
 
 const resourceStore = useResourceStore();
-const accountStore = useAccountStore();
 
 const isLoadingCloudAreas = ref(false);
 const cloudAreaPage = ref(0);
 const cloudAreas = ref([]);
+
+const {
+  searchData,
+  searchValue,
+  filter,
+} = useFilter(props);
 
 const {
   datas,
@@ -63,69 +72,18 @@ const {
   handlePageChange,
   handlePageSizeChange,
   handleSort,
-} = useQueryList(props, 'cvms');
+  triggerApi,
+} = useQueryList({ filter: filter.value }, 'cvms');
 
 const {
   selections,
   handleSelectionChange,
+  resetSelections,
 } = useSelection();
-
-const {
-  searchData,
-  searchValue,
-} = useFilter(props);
-
-
-// const {
-//   isShowShutdown,
-//   handleShutdown,
-//   HostShutdown,
-// } = useShutdown();
-
-// const {
-//   isShowReboot,
-//   handleReboot,
-//   HostReboot,
-// } = useReboot();
-
-// const {
-//   isShowPassword,
-//   handlePassword,
-//   HostPassword,
-// } = usePassword();
-
-// const {
-//   isShowRefund,
-//   handleRefund,
-//   HostRefund,
-// } = useRefund();
-
-// const {
-//   isShowBootUp,
-//   handleBootUp,
-//   HostBootUp,
-// } = useBootUp();
-
-// 更多
-// const moreOperations = [
-//   {
-//     name: t('重启'),
-//     handler: handleReboot,
-//   },
-//   {
-//     name: t('重置密码'),
-//     handler: handlePassword,
-//   },
-//   {
-//     name: t('退回'),
-//     handler: handleRefund,
-//   },
-// ];
-
 
 const isShowDistribution = ref(false);
 const businessId = ref('');
-const businessList = ref([]);
+const businessList = ref(useBusinessMapStore().businessList);
 const columns = useColumns('cvms');
 
 const hostSearchData = computed(() => {
@@ -212,14 +170,6 @@ const distribColumns = [
   },
 ];
 
-const getBusinessList = async () => {
-  try {
-    const res = await accountStore.getBizList();
-    businessList.value = res?.data;
-  } catch (error) {
-    console.log(error);
-  }
-};
 
 const distributionCvm = async () => {
   const cvmIds = selections.value.map(e => e.id);
@@ -240,12 +190,8 @@ const handleDistributionConfirm = () => {
   distributionCvm();
 };
 
-// const handleDistribution = () => {
-//   isShowDistribution.value = true;
-//   console.log(111);
-// };
-
 const isRowSelectEnable = ({ row }: DoublePlainObject) => {
+  if (!props.isResourcePage) return true;
   if (row.id) {
     return row.bk_biz_id === -1;
   }
@@ -269,8 +215,6 @@ const getCloudAreas = () => {
       isLoadingCloudAreas.value = false;
     });
 };
-
-getBusinessList();
 getCloudAreas();
 
 </script>
@@ -282,57 +226,13 @@ getCloudAreas();
     <section
       class="flex-row align-items-center"
       :class="isResourcePage ? 'justify-content-end' : 'justify-content-between'">
-      <!-- <bk-button
-        class="w100"
-        theme="primary"
-        :disabled="selections.length <= 0"
-        @click="handleDistribution"
-      >
-        {{ t('分配') }}
-      </bk-button> -->
-      <!-- <bk-button
-        class="w100 ml10"
-        theme="primary"
-        @click="() => {
-          handleCvmOperate('bootUp')
-        }"
-      >
-        {{ t('开机') }}
-      </bk-button>
-      <bk-button
-        class="w100 ml10"
-        theme="primary"
-        @click="handleShutdown"
-      >
-        {{ t('关机') }}
-      </bk-button>
-      <bk-dropdown
-        class="ml10"
-        placement="right-start"
-      >
-        <bk-button>
-          <span class="w60">
-            {{ t('更多') }}
-          </span>
-          <angle-right
-            width="16"
-            height="16"
-          />
-        </bk-button>
-        <template #content>
-          <bk-dropdown-menu>
-            <bk-dropdown-item
-              v-for="operation in moreOperations"
-              :key="operation.name"
-              @click="operation.handler"
-            >
-              {{ operation.name }}
-            </bk-dropdown-item>
-          </bk-dropdown-menu>
-        </template>
-      </bk-dropdown> -->
       <slot></slot>
-      <div class="flex-row align-items-center justify-content-arround">
+      <HostOperations :selections="selections" :on-finished="() => {
+        triggerApi();
+        resetSelections();
+      }"></HostOperations>
+
+      <div class="flex-row align-items-center justify-content-arround search-selector-container">
         <bk-search-select
           class="w500 ml10 mr15"
           clearable
@@ -358,6 +258,7 @@ getCloudAreas();
       @page-value-change="handlePageChange"
       @selection-change="handleSelectionChange"
       @column-sort="handleSort"
+      row-key="id"
     />
 
     <bk-dialog
@@ -391,30 +292,6 @@ getCloudAreas();
       />
     </bk-dialog>
 
-    <!-- <host-shutdown
-      v-model:isShow="isShowShutdown"
-      :title="t('关机')"
-    />
-
-    <host-reboot
-      v-model:isShow="isShowReboot"
-      :title="t('重启')"
-    />
-
-    <host-password
-      v-model:isShow="isShowPassword"
-      :title="t('修改密码')"
-    />
-
-    <host-refund
-      v-model:isShow="isShowRefund"
-      :title="t('主机回收')"
-    />
-
-    <host-boot-up
-      v-model:isShow="isShowBootUp"
-      :title="t('开机')"
-    /> -->
   </bk-loading>
 </template>
 
@@ -434,5 +311,8 @@ getCloudAreas();
 }
 .mr15 {
   margin-right: 15px;
+}
+.search-selector-container {
+  margin-left: auto;
 }
 </style>

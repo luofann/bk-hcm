@@ -17,6 +17,7 @@
  * to the current version of the project delivered to anyone in the future.
  */
 
+// Package image ...
 package image
 
 import (
@@ -108,7 +109,7 @@ func (pImageDao ImageDao) List(kt *kit.Kit, opt *types.ListOption) (*cloud.Image
 	columnTypes["extension.sku"] = enumor.String
 	columnTypes["extension.self_link"] = enumor.String
 	if err := opt.Validate(filter.NewExprOption(filter.RuleFields(columnTypes)),
-		core.DefaultPageOption); err != nil {
+		core.NewDefaultPageOption()); err != nil {
 		return nil, err
 	}
 

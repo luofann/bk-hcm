@@ -129,7 +129,7 @@ func (req *GcpAccountExtensionCreateReq) Validate(accountType enumor.AccountType
 	}
 
 	// 检查密钥是否符合要求
-	if err := validateGcpAccountCloudServiceSecretKey(req.CloudServiceSecretKey); err != nil {
+	if err := validateGcpCloudServiceSK(req.CloudServiceSecretKey); err != nil {
 		return err
 	}
 
@@ -185,7 +185,7 @@ func (req *AzureAccountExtensionCreateReq) IsFull() bool {
 // AccountCommonInfoCreateReq ...
 type AccountCommonInfoCreateReq struct {
 	Vendor   enumor.Vendor          `json:"vendor" validate:"required"`
-	Name     string                 `json:"name" validate:"required,min=3,max=32"`
+	Name     string                 `json:"name" validate:"required,min=3,max=64"`
 	Managers []string               `json:"managers" validate:"required,max=5"`
 	Type     enumor.AccountType     `json:"type" validate:"required"`
 	Site     enumor.AccountSiteType `json:"site" validate:"required"`

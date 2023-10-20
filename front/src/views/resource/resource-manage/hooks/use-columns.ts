@@ -1,6 +1,6 @@
 // table 字段相关信息
 import i18n from '@/language/i18n';
-import { CloudType, HostCloudEnum, SecurityRuleEnum, HuaweiSecurityRuleEnum, AzureSecurityRuleEnum } from '@/typings';
+import { CloudType, SecurityRuleEnum, HuaweiSecurityRuleEnum, AzureSecurityRuleEnum } from '@/typings';
 import { useAccountStore } from '@/store';
 import {
   Button,
@@ -12,13 +12,15 @@ import {
   useRoute,
   useRouter,
 } from 'vue-router';
-import { CLOUD_HOST_STATUS } from '@/common/constant';
+import { CLOUD_HOST_STATUS, VendorEnum } from '@/common/constant';
+import { useRegionsStore } from '@/store/useRegionsStore';
 
 export default (type: string, isSimpleShow = false, vendor?: string) => {
   const router = useRouter();
   const route = useRoute();
   const accountStore = useAccountStore();
   const { t } = i18n.global;
+  const { getRegionName } = useRegionsStore();
 
   const getLinkField = (type: string, label = 'ID', field = 'id', idFiled = 'id', onlyShowOnList = true) => {
     return {
@@ -117,17 +119,10 @@ export default (type: string, isSimpleShow = false, vendor?: string) => {
     {
       label: '地域',
       field: 'region',
-      render({ cell }: { cell: string }) {
-        return h(
-          'span',
-          [
-            cell || '--',
-          ],
-        );
-      },
+      render: ({ cell, row }: { cell: string, row: { vendor: VendorEnum } }) => getRegionName(row.vendor, cell),
     },
     {
-      label: '管控区域',
+      label: '管控区域 ID',
       field: 'bk_cloud_id',
       render({ cell }: { cell: number }) {
         if (cell > -1) {
@@ -193,14 +188,7 @@ export default (type: string, isSimpleShow = false, vendor?: string) => {
     {
       label: '地域',
       field: 'region',
-      render({ cell }: { cell: string }) {
-        return h(
-          'span',
-          [
-            cell || '--',
-          ],
-        );
-      },
+      render: ({ cell, row }: { cell: string, row: { vendor: VendorEnum } }) => getRegionName(row.vendor, cell),
     },
     {
       label: '可用区',
@@ -272,6 +260,7 @@ export default (type: string, isSimpleShow = false, vendor?: string) => {
     {
       label: '地域',
       field: 'region',
+      render: ({ cell, row }: { cell: string, row: { vendor: VendorEnum } }) => getRegionName(row.vendor, cell),
     },
     {
       label: '描述',
@@ -323,10 +312,11 @@ export default (type: string, isSimpleShow = false, vendor?: string) => {
   ];
 
   const driveColumns: any[] = [
-    // {
-    //   type: 'selection',
-    //   onlyShowOnList: true,
-    // },
+    {
+      type: 'selection',
+      width: '100',
+      onlyShowOnList: true,
+    },
     getLinkField('drive'),
     {
       label: '资源 ID',
@@ -482,14 +472,7 @@ export default (type: string, isSimpleShow = false, vendor?: string) => {
     {
       label: '地域',
       field: 'region',
-      render({ cell }: { cell: string }) {
-        return h(
-          'span',
-          [
-            cell || '--',
-          ],
-        );
-      },
+      render: ({ cell, row }: { cell: string, row: { vendor: VendorEnum } }) => getRegionName(row.vendor, cell),
     },
     {
       label: '可用区域',
@@ -602,6 +585,7 @@ export default (type: string, isSimpleShow = false, vendor?: string) => {
       label: '地域',
       field: 'region',
       sort: true,
+      render: ({ cell, row }: { cell: string, row: { vendor: VendorEnum } }) => getRegionName(row.vendor, cell),
     },
     {
       label: '名称',
@@ -652,6 +636,7 @@ export default (type: string, isSimpleShow = false, vendor?: string) => {
       label: '地域',
       onlyShowOnList: true,
       field: 'region',
+      render: ({ cell, row }: { cell: string, row: { vendor: VendorEnum } }) => getRegionName(row.vendor, cell),
     },
     {
       label: '名称',
@@ -682,7 +667,7 @@ export default (type: string, isSimpleShow = false, vendor?: string) => {
       },
     },
     {
-      label: '云区域ID',
+      label: '管控区域 ID',
       field: 'bk_cloud_id',
       render({ data }: any) {
         return h(
@@ -821,14 +806,7 @@ export default (type: string, isSimpleShow = false, vendor?: string) => {
     {
       label: '地域',
       field: 'region',
-      render({ cell }: { cell: string }) {
-        return h(
-          'span',
-          [
-            cell || '--',
-          ],
-        );
-      },
+      render: ({ cell, row }: { cell: string, row: { vendor: VendorEnum } }) => getRegionName(row.vendor, cell),
     },
     {
       label: '名称',

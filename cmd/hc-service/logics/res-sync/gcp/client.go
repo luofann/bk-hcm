@@ -49,12 +49,17 @@ type Interface interface {
 	RemoveSubnetDeleteFromCloud(kt *kit.Kit, accountID string, region string) error
 
 	Image(kt *kit.Kit, params *SyncBaseParams, opt *SyncImageOption) (*SyncResult, error)
-	RemoveImageDeleteFromCloud(kt *kit.Kit, accountID string, region string) error
+	RemoveImageDeleteFromCloud(kt *kit.Kit, accountID string, projectID string) error
 
 	NetworkInterface(kt *kit.Kit, params *SyncBaseParams, opt *SyncNIOption) (*SyncResult, error)
 
 	Vpc(kt *kit.Kit, params *SyncBaseParams, opt *SyncVpcOption) (*SyncResult, error)
 	RemoveVpcDeleteFromCloud(kt *kit.Kit, accountID string) error
+
+	Zone(kt *kit.Kit, opt *SyncZoneOption) (*SyncResult, error)
+
+	Region(kt *kit.Kit, params *SyncBaseParams, opt *SyncRegionOption) (*SyncResult, error)
+	RemoveRegionDeleteFromCloud(kt *kit.Kit, accountID string) error
 }
 
 var _ Interface = new(client)

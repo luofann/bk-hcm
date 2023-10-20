@@ -17,13 +17,15 @@
  * to the current version of the project delivered to anyone in the future.
  */
 
+// Package bill ...
 package bill
 
 import (
-	"strings"
+	"time"
 
 	typesBill "hcm/pkg/adaptor/types/bill"
 	"hcm/pkg/adaptor/types/core"
+	"hcm/pkg/criteria/constant"
 	"hcm/pkg/criteria/errf"
 	"hcm/pkg/criteria/validator"
 )
@@ -46,9 +48,14 @@ func (opt AwsBillListReq) Validate() error {
 		return err
 	}
 
+	// aws的AthenaQuery属于sql查询，跟SDK接口的Limit限制不同
 	if opt.Page != nil {
-		if err := opt.Page.Validate(); err != nil {
-			return err
+		if opt.Page.Limit == 0 {
+			return errf.New(errf.InvalidParameter, "aws.limit is required")
+		}
+
+		if opt.Page.Limit > 100000 {
+			return errf.New(errf.InvalidParameter, "aws.limit should <= 100000")
 		}
 	}
 
@@ -56,14 +63,18 @@ func (opt AwsBillListReq) Validate() error {
 		return errf.New(errf.InvalidParameter, "begin_date and end_date can not be empty")
 	}
 
-	beginArr := strings.Split(opt.BeginDate, "-")
-	if len(beginArr) != 3 {
-		return errf.New(errf.InvalidParameter, "begin_date is invalid")
+	beginDate, err := time.Parse(constant.DateLayout, opt.BeginDate)
+	if err != nil {
+		return err
 	}
 
-	endArr := strings.Split(opt.EndDate, "-")
-	if len(endArr) != 3 {
-		return errf.New(errf.InvalidParameter, "end_date is invalid")
+	endDate, err := time.Parse(constant.DateLayout, opt.EndDate)
+	if err != nil {
+		return err
+	}
+
+	if beginDate.Year() != endDate.Year() || beginDate.Month() != endDate.Month() {
+		return errf.New(errf.InvalidParameter, "begin_date and end_date are not the same year and month.")
 	}
 
 	return nil
@@ -176,6 +187,9 @@ type TCloudBillListReq struct {
 	EndDate string `json:"end_date" validate:"omitempty"`
 	// Limit: 最大值为100
 	Page *core.TCloudPage `json:"page" validate:"omitempty"`
+	// 本次请求的上下文信息，可用于下一次请求的请求参数中，加快查询速度
+	// 注意：此字段可能返回 null，表示取不到有效值。
+	Context *string `json:"Context" validate:"omitempty"`
 }
 
 // Validate tcloud bill list req.
@@ -248,7 +262,9 @@ func (opt AzureBillListReq) Validate() error {
 
 // GcpBillListReq defines gcp bill list req.
 type GcpBillListReq struct {
-	AccountID string `json:"account_id" validate:"required"`
+	// BillAccountID bill账号ID
+	BillAccountID string `json:"bill_account_id" validate:"required"`
+	AccountID     string `json:"account_id" validate:"required"`
 	// 包含费用专列项的账单的年份和月份，格式为YYYYMM 示例:201901，可以使用此字段获取账单上的总费用
 	Month string `json:"month" validate:"omitempty"`
 	// 起始时间戳，时间戳值表示绝对时间点，与任何时区或惯例（如夏令时）无关，可精确到微秒，
@@ -270,9 +286,13 @@ func (opt GcpBillListReq) Validate() error {
 		return errf.New(errf.InvalidParameter, "month and begin_date and end_date can not be empty")
 	}
 
+	// gcp的BigQuery属于sql查询，跟SDK接口的Limit限制不同
 	if opt.Page != nil {
-		if err := opt.Page.Validate(); err != nil {
-			return err
+		if opt.Page.Limit == 0 {
+			return errf.New(errf.InvalidParameter, "page.limit is required")
+		}
+		if opt.Page.Limit > 100000 {
+			return errf.New(errf.InvalidParameter, "page.limit should <= 100000")
 		}
 	}
 

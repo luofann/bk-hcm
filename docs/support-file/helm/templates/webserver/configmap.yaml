@@ -41,3 +41,7 @@ data:
       bkComponentApiUrl: {{ .Values.bkComponentApiUrl }}
       # ITSM 地址
       bkItsmUrl: {{ .Values.bkItsmUrl }}
+      # 中英文持久化
+      bkDomain: {{ .Values.bkDomain }}
+    itsm:
+      {{- toYaml .Values.itsm | nindent 6 }}

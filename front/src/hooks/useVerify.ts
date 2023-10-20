@@ -1,4 +1,5 @@
 import { useCommonStore } from '@/store';
+import usePagePermissionStore from '@/store/usePagePermissionStore';
 // import { Verify } from '@/typings';
 import {
   ref,
@@ -13,9 +14,15 @@ const showPermissionDialog = ref(false);
 const authVerifyData = ref<any>({ permissionAction: {}, urlParams: {} });
 const permissionParams = ref({ system_id: '', actions: [] });
 
+export enum  IAM_CODE {
+  Success = 0,
+  NoPermission = 2000009,
+};
+
 // 权限hook
 export function useVerify() {
   const commonStore = useCommonStore();
+  const { setHasPagePermission, setPermissionMsg, logout } = usePagePermissionStore();
 
   // 根据参数获取权限
   const getAuthVerifyData = async (authData: any[]) => {
@@ -32,8 +39,21 @@ export function useVerify() {
       p.resources.push(resourceData);
       return p;
     }, { resources: [] });
-    const res = await commonStore.authVerify(params);
-    if (res.data.permission) {    // 没有权限才需要获取跳转链接参数
+    let res;
+    try {
+      res = await commonStore.authVerify(params);
+    } catch (err: any) {
+      switch (err.code) {
+        case IAM_CODE.NoPermission:
+          setHasPagePermission(false);
+          setPermissionMsg(err.message);
+          break;
+        default:
+          logout();
+      }
+    }
+
+    if (res?.data?.permission) {    // 没有权限才需要获取跳转链接参数
       // 每个操作对应的参数
       const systemId = res.data.permission.system_id;
       const urlParams = res.data.permission.actions.reduce((p: any, e: any) => {
@@ -46,14 +66,14 @@ export function useVerify() {
       authVerifyData.value.urlParams = urlParams;
     }
     // permissionAction 用于判断按钮状态 仅针对操作按钮有用
-    const permissionAction = res.data.results.reduce((p: any, e: any, i: number) => {    // 将数组转成对象
+    const permissionAction = res?.data?.results.reduce((p: any, e: any, i: number) => {    // 将数组转成对象
       p[`${authData[i].id}`] = e.authorized;
       return p;
     }, {});
 
     authVerifyData.value.permissionAction  = permissionAction;
     commonStore.addAuthVerifyData(authVerifyData);    // 全局变量管理
-    return res.data;
+    return res?.data;
   };
 
   // 获取操作跳转链接

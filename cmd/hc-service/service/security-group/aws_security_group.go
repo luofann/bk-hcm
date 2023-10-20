@@ -67,7 +67,7 @@ func (g *securityGroup) CreateAwsSecurityGroup(cts *rest.Contexts) (interface{},
 		Region:   req.Region,
 		CloudIDs: []string{cloudID},
 	}
-	result, err := client.ListSecurityGroup(cts.Kit, listOpt)
+	_, result, err := client.ListSecurityGroup(cts.Kit, listOpt)
 	if err != nil {
 		logs.Errorf("request adaptor to list aws security group failed, err: %v, opt: %v, rid: %s", err, opt,
 			cts.Kit.Rid)
@@ -208,7 +208,7 @@ func (g *securityGroup) AwsSecurityGroupDisassociateCvm(cts *rest.Contexts) (int
 func (g *securityGroup) getVpcIDByCloudVpcID(kt *kit.Kit, cloudVpcID string) (string, error) {
 	req := &core.ListReq{
 		Filter: tools.EqualExpression("cloud_id", cloudVpcID),
-		Page:   core.DefaultBasePage,
+		Page:   core.NewDefaultBasePage(),
 		Fields: []string{"id"},
 	}
 	result, err := g.dataCli.Global.Vpc.List(kt.Ctx, kt.Header(), req)

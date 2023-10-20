@@ -5,6 +5,7 @@ import {
   Ref,
   ref,
   h,
+  watch,
 } from 'vue';
 
 import DeleteResource from '../children/dialog/delete-resource/delete-resource';
@@ -22,7 +23,8 @@ export default (
   type: string,
   title: string,
   isBatch?: boolean,
-  cb?: Function,
+  operationType: 'delete' | 'recycle' = 'delete',
+  onFinishedCallback?: () => void,
 ) => {
   const resourceStore = useResourceStore();
 
@@ -30,11 +32,11 @@ export default (
 
   const isShow = ref(false);
   const isDeleting = ref(false);
-  const deleteId = ref(0);
+  const deleteIds = ref(Array<number>);
 
   // 展示删除弹框
   const handleShowDelete = (value: any) => {
-    deleteId.value = value;
+    deleteIds.value = value;
     isShow.value = true;
   };
 
@@ -43,50 +45,49 @@ export default (
     isShow.value = false;
   };
 
-  // 删除数据
+  watch(
+    () => isShow.value,
+    () => {
+      data.value = data.value.filter((selection: {
+        id: number
+      }) => (deleteIds.value as unknown as Array<number>).includes(selection.id));
+    },
+  );
+
+  // 删除\回收数据
   const handleDelete = () => {
     isDeleting.value = true;
-    console.log('isBatch', isBatch);
-    if (isBatch) {
-      resourceStore
-        .deleteBatch(type, { ids: deleteId.value })
-        .then(() => {
-          isShow.value = false;
-          Message({
-            theme: 'success',
-            message: t('删除成功'),
-          });
-          cb?.(); // 删除数据回调列表接口
-        })
-        .catch((err: any) => {
-          Message({
-            theme: 'error',
-            message: err.message || err,
-          });
-        })
-        .finally(() => {
-          isDeleting.value = false;
+    let promise;
+    switch (operationType) {
+      case 'recycle':
+        promise = resourceStore.recycled(type, {
+          infos: (deleteIds.value as unknown as Array<number>).map(id => ({ id })),
         });
-    } else {
-      resourceStore
-        .delete(type, deleteId.value)
-        .then(() => {
-          isShow.value = false;
-          Message({
-            theme: 'success',
-            message: t('删除成功'),
-          });
-        })
-        .catch((err: any) => {
-          Message({
-            theme: 'error',
-            message: err.message || err,
-          });
-        })
-        .finally(() => {
-          isDeleting.value = false;
-        });
+        break;
+      case 'delete':
+      default:
+        promise = isBatch
+          ? resourceStore.deleteBatch(type, { ids: deleteIds.value })
+          : resourceStore.delete(type, deleteIds.value as unknown as number|string);
     }
+    promise
+      .then(() => {
+        isShow.value = false;
+        Message({
+          theme: 'success',
+          message: t('操作成功'),
+        });
+        onFinishedCallback?.(); // 删除数据回调列表接口
+      })
+      .catch((err: any) => {
+        Message({
+          theme: 'error',
+          message: err.message || err,
+        });
+      })
+      .finally(() => {
+        isDeleting.value = false;
+      });
   };
 
   return {

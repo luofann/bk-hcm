@@ -17,18 +17,22 @@
  * to the current version of the project delivered to anyone in the future.
  */
 
+// Package vpc ...
 package vpc
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"hcm/cmd/cloud-server/logics/audit"
 	"hcm/cmd/cloud-server/service/capability"
+	"hcm/cmd/cloud-server/service/common"
 	cloudserver "hcm/pkg/api/cloud-server"
+	csvpc "hcm/pkg/api/cloud-server/vpc"
 	"hcm/pkg/api/core"
 	corecloud "hcm/pkg/api/core/cloud"
 	"hcm/pkg/api/data-service/cloud"
-	hcservice "hcm/pkg/api/hc-service"
+	hcservice "hcm/pkg/api/hc-service/vpc"
 	"hcm/pkg/client"
 	"hcm/pkg/criteria/constant"
 	"hcm/pkg/criteria/enumor"
@@ -55,10 +59,12 @@ func InitVpcService(c *capability.Capability) {
 
 	h.Add("GetVpc", "GET", "/vpcs/{id}", svc.GetVpc)
 	h.Add("ListVpc", "POST", "/vpcs/list", svc.ListVpc)
+	h.Add("CreateVpc", "POST", "/vpcs/create", svc.CreateVpc)
 	h.Add("UpdateVpc", "PATCH", "/vpcs/{id}", svc.UpdateVpc)
 	h.Add("DeleteVpc", "DELETE", "/vpcs/{id}", svc.DeleteVpc)
 	h.Add("AssignVpcToBiz", "POST", "/vpcs/assign/bizs", svc.AssignVpcToBiz)
 	h.Add("BindVpcWithCloudArea", "POST", "/vpcs/bind/cloud_areas", svc.BindVpcWithCloudArea)
+	h.Add("ListResVpcExt", "POST", "/vendors/{vendor}/vpcs/list", svc.ListResVpcExt)
 
 	// vpc apis in biz
 	h.Add("GetBizVpc", "GET", "/bizs/{bk_biz_id}/vpcs/{id}", svc.GetBizVpc)
@@ -76,6 +82,149 @@ type vpcSvc struct {
 	audit      audit.Interface
 }
 
+// CreateVpc create vpc.
+func (svc *vpcSvc) CreateVpc(cts *rest.Contexts) (interface{}, error) {
+
+	req := new(cloudserver.ResourceCreateReq)
+	if err := cts.DecodeInto(req); err != nil {
+		logs.Errorf("create vpc request decode failed, err: %v, rid: %s", err, cts.Kit.Rid)
+		return nil, errf.NewFromErr(errf.DecodeRequestFailed, err)
+	}
+
+	authRes := meta.ResourceAttribute{Basic: &meta.Basic{Type: meta.Vpc, Action: meta.Create,
+		ResourceID: req.AccountID}}
+	if err := svc.authorizer.AuthorizeWithPerm(cts.Kit, authRes); err != nil {
+		logs.Errorf("create vpc auth failed, err: %v, rid: %s", err, cts.Kit.Rid)
+		return nil, err
+	}
+
+	// 获取资源公共参数，如厂商
+	info, err := svc.client.DataService().Global.Cloud.GetResourceBasicInfo(cts.Kit.Ctx, cts.Kit.Header(),
+		enumor.AccountCloudResType, req.AccountID)
+	if err != nil {
+		logs.Errorf("get account basic info failed, err: %v, rid: %s", err, cts.Kit.Rid)
+		return nil, err
+	}
+
+	// 根据厂商信息转到下方具体的实现
+	switch info.Vendor {
+	case enumor.TCloud:
+		return svc.createTCloudVpc(cts.Kit, req.Data)
+	case enumor.Aws:
+		return svc.createAwsVpc(cts.Kit, req.Data)
+	case enumor.HuaWei:
+		return svc.createHuaWeiVpc(cts.Kit, req.Data)
+	case enumor.Gcp:
+		return svc.createGcpVpc(cts.Kit, req.Data)
+	case enumor.Azure:
+		return svc.createAzureVpc(cts.Kit, req.Data)
+	default:
+		return nil, fmt.Errorf("vendor: %s not support", info.Vendor)
+	}
+
+}
+
+func (svc *vpcSvc) createTCloudVpc(kt *kit.Kit, body json.RawMessage) (interface{}, error) {
+
+	req := new(csvpc.TCloudVpcCreateReq)
+	if err := json.Unmarshal(body, req); err != nil {
+		return nil, errf.NewFromErr(errf.DecodeRequestFailed, err)
+	}
+	// 校验参数，不要求业务id
+	if err := req.Validate(false); err != nil {
+		return nil, errf.NewFromErr(errf.InvalidParameter, err)
+	}
+	// 转换参数并调用HCService进行创建流程
+	result, err := svc.client.HCService().TCloud.Vpc.Create(kt.Ctx, kt.Header(), common.ConvTCloudVpcCreateReq(req))
+	if err != nil {
+		logs.Errorf("batch create tcloud vpc failed, err: %v, result: %v, rid: %s", err, result, kt.Rid)
+		return result, err
+	}
+
+	return result, nil
+}
+
+func (svc *vpcSvc) createAzureVpc(kt *kit.Kit, body json.RawMessage) (interface{}, error) {
+
+	req := new(csvpc.AzureVpcCreateReq)
+	if err := json.Unmarshal(body, req); err != nil {
+		return nil, errf.NewFromErr(errf.DecodeRequestFailed, err)
+	}
+
+	if err := req.Validate(false); err != nil {
+		return nil, errf.NewFromErr(errf.InvalidParameter, err)
+	}
+
+	result, err := svc.client.HCService().Azure.Vpc.Create(kt.Ctx, kt.Header(), common.ConvAzureVpcCreateReq(req))
+	if err != nil {
+		logs.Errorf("batch create azure vpc failed, err: %v, result: %v, rid: %s", err, result, kt.Rid)
+		return result, err
+	}
+
+	return result, nil
+}
+
+func (svc *vpcSvc) createHuaWeiVpc(kt *kit.Kit, body json.RawMessage) (interface{}, error) {
+
+	req := new(csvpc.HuaWeiVpcCreateReq)
+	if err := json.Unmarshal(body, req); err != nil {
+		return nil, errf.NewFromErr(errf.DecodeRequestFailed, err)
+	}
+
+	if err := req.Validate(false); err != nil {
+		return nil, errf.NewFromErr(errf.InvalidParameter, err)
+	}
+
+	result, err := svc.client.HCService().HuaWei.Vpc.Create(kt.Ctx, kt.Header(),
+		common.ConvHuaWeiVpcCreateReq(req))
+	if err != nil {
+		logs.Errorf("batch create huawei vpc failed, err: %v, result: %v, rid: %s", err, result, kt.Rid)
+		return result, err
+	}
+
+	return result, nil
+}
+
+func (svc *vpcSvc) createGcpVpc(kt *kit.Kit, body json.RawMessage) (interface{}, error) {
+
+	req := new(csvpc.GcpVpcCreateReq)
+	if err := json.Unmarshal(body, req); err != nil {
+		return nil, errf.NewFromErr(errf.DecodeRequestFailed, err)
+	}
+
+	if err := req.Validate(false); err != nil {
+		return nil, errf.NewFromErr(errf.InvalidParameter, err)
+	}
+
+	result, err := svc.client.HCService().Gcp.Vpc.Create(kt.Ctx, kt.Header(), common.ConvGcpVpcCreateReq(req))
+	if err != nil {
+		logs.Errorf("batch create gcp vpc failed, err: %v, result: %v, rid: %s", err, result, kt.Rid)
+		return result, err
+	}
+
+	return result, nil
+}
+
+func (svc *vpcSvc) createAwsVpc(kt *kit.Kit, body json.RawMessage) (interface{}, error) {
+
+	req := new(csvpc.AwsVpcCreateReq)
+	if err := json.Unmarshal(body, req); err != nil {
+		return nil, errf.NewFromErr(errf.DecodeRequestFailed, err)
+	}
+
+	if err := req.Validate(false); err != nil {
+		return nil, errf.NewFromErr(errf.InvalidParameter, err)
+	}
+
+	result, err := svc.client.HCService().Aws.Vpc.Create(kt.Ctx, kt.Header(), common.ConvAwsVpcCreateReq(req))
+	if err != nil {
+		logs.Errorf("batch create aws vpc failed, err: %v, result: %v, rid: %s", err, result, kt.Rid)
+		return result, err
+	}
+
+	return result, nil
+}
+
 // UpdateVpc update vpc.
 func (svc *vpcSvc) UpdateVpc(cts *rest.Contexts) (interface{}, error) {
 	return svc.updateVpc(cts, handler.ResValidWithAuth)
@@ -87,7 +236,7 @@ func (svc *vpcSvc) UpdateBizVpc(cts *rest.Contexts) (interface{}, error) {
 }
 
 func (svc *vpcSvc) updateVpc(cts *rest.Contexts, validHandler handler.ValidWithAuthHandler) (interface{}, error) {
-	req := new(cloudserver.VpcUpdateReq)
+	req := new(csvpc.VpcUpdateReq)
 	if err := cts.DecodeInto(req); err != nil {
 		return nil, errf.NewFromErr(errf.DecodeRequestFailed, err)
 	}
@@ -239,7 +388,7 @@ func (svc *vpcSvc) listVpc(cts *rest.Contexts, authHandler handler.ListAuthResHa
 	}
 
 	if noPermFlag {
-		return &cloudserver.VpcListResult{Count: 0, Details: make([]corecloud.BaseVpc, 0)}, nil
+		return &csvpc.VpcListResult{Count: 0, Details: make([]corecloud.BaseVpc, 0)}, nil
 	}
 
 	req.Filter = expr
@@ -250,7 +399,12 @@ func (svc *vpcSvc) listVpc(cts *rest.Contexts, authHandler handler.ListAuthResHa
 		return nil, err
 	}
 
-	return &cloudserver.VpcListResult{Count: res.Count, Details: res.Details}, nil
+	return &csvpc.VpcListResult{Count: res.Count, Details: res.Details}, nil
+}
+
+// ListResVpcExt list resource vpc with extension.
+func (svc *vpcSvc) ListResVpcExt(cts *rest.Contexts) (interface{}, error) {
+	return svc.listVpcExt(cts, handler.ListResourceAuthRes)
 }
 
 // ListBizVpcExt list biz vpc with extension.
@@ -278,7 +432,7 @@ func (svc *vpcSvc) listVpcExt(cts *rest.Contexts, authHandler handler.ListAuthRe
 	}
 
 	if noPermFlag {
-		return &cloudserver.VpcListResult{Count: 0, Details: make([]corecloud.BaseVpc, 0)}, nil
+		return &csvpc.VpcListResult{Count: 0, Details: make([]corecloud.BaseVpc, 0)}, nil
 	}
 	req.Filter = expr
 
@@ -357,7 +511,7 @@ func (svc *vpcSvc) deleteVpc(cts *rest.Contexts, validHandler handler.ValidWithA
 
 // AssignVpcToBiz assign vpcs to biz.
 func (svc *vpcSvc) AssignVpcToBiz(cts *rest.Contexts) (interface{}, error) {
-	req := new(cloudserver.AssignVpcToBizReq)
+	req := new(csvpc.AssignVpcToBizReq)
 	if err := cts.DecodeInto(req); err != nil {
 		return nil, err
 	}
@@ -406,7 +560,7 @@ func (svc *vpcSvc) AssignVpcToBiz(cts *rest.Contexts) (interface{}, error) {
 
 // BindVpcWithCloudArea bind vpcs with cloud areas.
 func (svc *vpcSvc) BindVpcWithCloudArea(cts *rest.Contexts) (interface{}, error) {
-	req := make(cloudserver.BindVpcWithCloudAreaReq, 0)
+	req := make(csvpc.BindVpcWithCloudAreaReq, 0)
 	if err := cts.DecodeInto(&req); err != nil {
 		return nil, err
 	}
@@ -442,9 +596,7 @@ func (svc *vpcSvc) BindVpcWithCloudArea(cts *rest.Contexts) (interface{}, error)
 				&filter.AtomRule{Field: "bk_cloud_id", Op: filter.NotEqual.Factory(), Value: constant.UnbindBkCloudID},
 			},
 		},
-		Page: &core.BasePage{
-			Count: true,
-		},
+		Page: &core.BasePage{Count: true},
 	}
 	result, err := svc.client.DataService().Global.Vpc.List(cts.Kit.Ctx, cts.Kit.Header(), assignedReq)
 	if err != nil {
@@ -459,10 +611,7 @@ func (svc *vpcSvc) BindVpcWithCloudArea(cts *rest.Contexts) (interface{}, error)
 	// create assign audit.
 	auditOpt := make([]audit.ResCloudAreaBindOption, 0, len(req))
 	for _, info := range req {
-		auditOpt = append(auditOpt, audit.ResCloudAreaBindOption{
-			ResID:   info.VpcID,
-			CloudID: info.BkCloudID,
-		})
+		auditOpt = append(auditOpt, audit.ResCloudAreaBindOption{ResID: info.VpcID, CloudID: info.BkCloudID})
 	}
 	err = svc.audit.ResCloudAreaBindAudit(cts.Kit, enumor.VpcCloudAuditResType, auditOpt)
 	if err != nil {
@@ -479,9 +628,7 @@ func (svc *vpcSvc) BindVpcWithCloudArea(cts *rest.Contexts) (interface{}, error)
 		})
 	}
 
-	batchUpdateReq := &cloud.VpcBaseInfoBatchUpdateReq{
-		Vpcs: updateReqs,
-	}
+	batchUpdateReq := &cloud.VpcBaseInfoBatchUpdateReq{Vpcs: updateReqs}
 
 	err = svc.client.DataService().Global.Vpc.BatchUpdateBaseInfo(cts.Kit.Ctx, cts.Kit.Header(), batchUpdateReq)
 	if err != nil {

@@ -32,9 +32,9 @@ import (
 	"hcm/pkg/api/core"
 	dataservice "hcm/pkg/api/data-service"
 	"hcm/pkg/api/data-service/cloud"
-	hcservice "hcm/pkg/api/hc-service"
 	hcroutetable "hcm/pkg/api/hc-service/route-table"
 	subnetproto "hcm/pkg/api/hc-service/subnet"
+	hcservice "hcm/pkg/api/hc-service/vpc"
 	"hcm/pkg/criteria/constant"
 	"hcm/pkg/criteria/errf"
 	"hcm/pkg/dal/dao/tools"
@@ -118,7 +118,7 @@ func (v vpc) GcpVpcCreate(cts *rest.Contexts) (interface{}, error) {
 		}
 	}
 
-	// sync route table
+	// TODO: sync-todo change to 3.0 sync route table
 	rtReq := &hcroutetable.GcpRouteTableSyncReq{
 		AccountID: req.AccountID,
 	}

@@ -25,8 +25,8 @@ import (
 
 	"hcm/cmd/hc-service/logics/res-sync/common"
 	"hcm/pkg/adaptor/aws"
-	"hcm/pkg/adaptor/types"
 	adcore "hcm/pkg/adaptor/types/core"
+	"hcm/pkg/adaptor/types/subnet"
 	"hcm/pkg/api/core"
 	cloudcore "hcm/pkg/api/core/cloud"
 	dataservice "hcm/pkg/api/data-service"
@@ -72,8 +72,14 @@ func (cli *client) Subnet(kt *kit.Kit, params *SyncBaseParams, opt *SyncSubnetOp
 		return new(SyncResult), nil
 	}
 
-	addSubnet, updateMap, delCloudIDs := common.Diff[types.AwsSubnet, cloudcore.Subnet[cloudcore.AwsSubnetExtension]](
+	addSubnet, updateMap, delCloudIDs := common.Diff[adtysubnet.AwsSubnet, cloudcore.Subnet[cloudcore.AwsSubnetExtension]](
 		subnetFromCloud, subnetFromDB, isAwsSubnetChange)
+
+	if len(delCloudIDs) > 0 {
+		if err = cli.deleteSubnet(kt, params.AccountID, params.Region, delCloudIDs); err != nil {
+			return nil, err
+		}
+	}
 
 	if len(addSubnet) > 0 {
 		if err = cli.createSubnet(kt, params.AccountID, params.Region, addSubnet); err != nil {
@@ -83,12 +89,6 @@ func (cli *client) Subnet(kt *kit.Kit, params *SyncBaseParams, opt *SyncSubnetOp
 
 	if len(updateMap) > 0 {
 		if err = cli.updateSubnet(kt, params.AccountID, updateMap); err != nil {
-			return nil, err
-		}
-	}
-
-	if len(delCloudIDs) > 0 {
-		if err = cli.deleteSubnet(kt, params.AccountID, params.Region, delCloudIDs); err != nil {
 			return nil, err
 		}
 	}
@@ -131,7 +131,7 @@ func (cli *client) deleteSubnet(kt *kit.Kit, accountID string, region string, de
 	return nil
 }
 
-func (cli *client) updateSubnet(kt *kit.Kit, accountID string, updateMap map[string]types.AwsSubnet) error {
+func (cli *client) updateSubnet(kt *kit.Kit, accountID string, updateMap map[string]adtysubnet.AwsSubnet) error {
 	if len(updateMap) == 0 {
 		return fmt.Errorf("update subnet, subnets is required")
 	}
@@ -175,7 +175,7 @@ func (cli *client) updateSubnet(kt *kit.Kit, accountID string, updateMap map[str
 	return nil
 }
 
-func (cli *client) createSubnet(kt *kit.Kit, accountID, region string, addSubnets []types.AwsSubnet) error {
+func (cli *client) createSubnet(kt *kit.Kit, accountID, region string, addSubnets []adtysubnet.AwsSubnet) error {
 	if len(addSubnets) == 0 {
 		return fmt.Errorf("create subnet, subnets is required")
 	}
@@ -248,7 +248,7 @@ func (cli *client) createSubnet(kt *kit.Kit, accountID, region string, addSubnet
 	return nil
 }
 
-func isAwsSubnetChange(item types.AwsSubnet, info cloudcore.Subnet[cloudcore.AwsSubnetExtension]) bool {
+func isAwsSubnetChange(item adtysubnet.AwsSubnet, info cloudcore.Subnet[cloudcore.AwsSubnetExtension]) bool {
 	if info.Region != item.Extension.Region {
 		return true
 	}
@@ -378,6 +378,10 @@ func (cli *client) listRemoveSubnetID(kt *kit.Kit, params *SyncBaseParams) ([]st
 				cloudIDs, delCloudID = removeNotFoundCloudID(cloudIDs, err)
 				delCloudIDs = append(delCloudIDs, delCloudID)
 
+				if len(cloudIDs) <= 0 {
+					break
+				}
+
 				continue
 			}
 
@@ -392,7 +396,7 @@ func (cli *client) listRemoveSubnetID(kt *kit.Kit, params *SyncBaseParams) ([]st
 	return delCloudIDs, nil
 }
 
-func (cli *client) listSubnetFromCloud(kt *kit.Kit, params *SyncBaseParams) ([]types.AwsSubnet, error) {
+func (cli *client) listSubnetFromCloud(kt *kit.Kit, params *SyncBaseParams) ([]adtysubnet.AwsSubnet, error) {
 	if err := params.Validate(); err != nil {
 		return nil, errf.NewFromErr(errf.InvalidParameter, err)
 	}
@@ -404,7 +408,7 @@ func (cli *client) listSubnetFromCloud(kt *kit.Kit, params *SyncBaseParams) ([]t
 	result, err := cli.cloudCli.ListSubnet(kt, opt)
 	if err != nil {
 		if strings.Contains(err.Error(), aws.ErrSubnetNotFound) {
-			return make([]types.AwsSubnet, 0), nil
+			return make([]adtysubnet.AwsSubnet, 0), nil
 		}
 
 		logs.Errorf("[%s] list subnet from cloud failed, err: %v, account: %s, opt: %v, rid: %s", enumor.Aws, err,
@@ -443,7 +447,7 @@ func (cli *client) listSubnetFromDB(kt *kit.Kit, params *SyncBaseParams) (
 				},
 			},
 		},
-		Page: core.DefaultBasePage,
+		Page: core.NewDefaultBasePage(),
 	}
 	result, err := cli.dbCli.Aws.Subnet.ListSubnetExt(kt.Ctx, kt.Header(), req)
 	if err != nil {

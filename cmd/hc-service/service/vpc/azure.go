@@ -24,10 +24,11 @@ import (
 	subnetlogics "hcm/cmd/hc-service/logics/subnet"
 	"hcm/pkg/adaptor/types"
 	adcore "hcm/pkg/adaptor/types/core"
+	adtysubnet "hcm/pkg/adaptor/types/subnet"
 	"hcm/pkg/api/core"
 	dataservice "hcm/pkg/api/data-service"
 	"hcm/pkg/api/data-service/cloud"
-	hcservice "hcm/pkg/api/hc-service"
+	hcservice "hcm/pkg/api/hc-service/vpc"
 	"hcm/pkg/criteria/constant"
 	"hcm/pkg/criteria/errf"
 	"hcm/pkg/dal/dao/tools"
@@ -59,7 +60,7 @@ func (v vpc) AzureVpcCreate(cts *rest.Contexts) (interface{}, error) {
 			ResourceGroup: req.Extension.ResourceGroup,
 			IPv4Cidr:      req.Extension.IPv4Cidr,
 			IPv6Cidr:      req.Extension.IPv6Cidr,
-			Subnets:       make([]types.AzureSubnetCreateOption, 0, len(req.Extension.Subnets)),
+			Subnets:       make([]adtysubnet.AzureSubnetCreateOption, 0, len(req.Extension.Subnets)),
 		},
 	}
 	for _, subnet := range req.Extension.Subnets {

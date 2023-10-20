@@ -31,13 +31,17 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    defaultUserlist: {
+      type: Array,
+      default: [],
+    },
   },
   emits: ['change', 'input', 'blur'],
   setup(props, ctx) {
     const tagInputRef = ref(null);
     const staffStore = useStaffStore();
     const searchKey = ['username'];
-    const userList: any = ref([]);
+    const userList: any = ref(props.defaultUserlist);
     const maxData = computed(() => (!props.multiple ? {
       maxData: 1,
     } : {}));
@@ -72,18 +76,18 @@ export default defineComponent({
     const getUserList = _.debounce((userName: string) => {
       if (staffStore.fetching || !userName) return;
       staffStore.fetchStaffs(userName);
-    }, 500);
+    }, 1000);
 
-    function handleInput(userName: string) {
+    const handleInput = (userName: string) => {
       getUserList(userName);
-    }
+    };
 
     watch(
       () => staffStore.list,
       (list) => {
         if (list.length) {
           nextTick(() => {
-            userList.value = _.cloneDeep(list);
+            userList.value = [...userList.value, ...list];
             // tagInputRef.value?.focusInputTrigger(); // 获取到数据聚焦
           });
         }
@@ -100,6 +104,7 @@ export default defineComponent({
         ref={tagInputRef}
         displayKey="display_name"
         saveKey="username"
+        is-async-list
         searchKey={searchKey}
         // filterCallback={handleSearch}
         modelValue={props.modelValue}

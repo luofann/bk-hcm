@@ -6,6 +6,7 @@ import type { Cond } from './use-condtion';
 import { Message } from 'bkui-vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
+import { useWhereAmI } from '@/hooks/useWhereAmI';
 
 const { BK_HCM_AJAX_URL_PREFIX } = window.PROJECT_CONFIG;
 
@@ -155,7 +156,7 @@ export default (cond: Cond) => {
     formData[key] = defaultData[key];
   };
 
-  watch(cond, (cond) => {
+  watch(cond, () => {
     resetFormData();
 
     nextTick(() => {
@@ -164,7 +165,7 @@ export default (cond: Cond) => {
   });
 
   const getSaveData = () => {
-    const { purchase_duration, public_ip_assigned, ...saveFormData } = formData
+    const { purchase_duration, public_ip_assigned, ...saveFormData } = formData;
     const saveData: ICvmSaveData = {
       ...saveFormData,
       bk_biz_id: cond.bizId,
@@ -174,26 +175,37 @@ export default (cond: Cond) => {
     };
 
     if (cond.vendor === VendorEnum.TCLOUD) {
-      saveData.public_ip_assigned = public_ip_assigned
-      saveData.instance_charge_paid_period = purchase_duration.count * (purchase_duration.unit === 'y' ? 12 : 1)
+      saveData.public_ip_assigned = public_ip_assigned;
+      saveData.instance_charge_paid_period = purchase_duration.count * (purchase_duration.unit === 'y' ? 12 : 1);
     }
 
     if (cond.vendor === VendorEnum.HUAWEI) {
-      saveData.public_ip_assigned = public_ip_assigned
-      saveData.instance_charge_paid_period = purchase_duration.count * (purchase_duration.unit === 'y' ? 12 : 1)
+      saveData.public_ip_assigned = public_ip_assigned;
+      saveData.instance_charge_paid_period = purchase_duration.count * (purchase_duration.unit === 'y' ? 12 : 1);
     }
 
     if (cond.vendor === VendorEnum.AWS) {
-      saveData.public_ip_assigned = public_ip_assigned
+      saveData.public_ip_assigned = public_ip_assigned;
     }
 
     if (cond.vendor === VendorEnum.AZURE) {
       saveData.resource_group_name = cond.resourceGroup;
-      saveData.cloud_security_group_ids = [saveFormData.cloud_security_group_ids as string]
+      saveData.cloud_security_group_ids = [saveFormData.cloud_security_group_ids as string];
     }
+
+    saveData.required_count = +saveData.required_count;
+    if (saveData?.system_disk?.disk_size_gb) saveData.system_disk.disk_size_gb = +saveData.system_disk.disk_size_gb;
+    if (saveData?.data_disk?.length) {
+      saveData.data_disk.forEach((item) => {
+        item.disk_count = +item.disk_count;
+        item.disk_size_gb = +item.disk_size_gb;
+      });
+    }
+
     return saveData;
   };
 
+  const { isResourcePage } = useWhereAmI();
   const submitting = ref(false);
   const handleFormSubmit = async () => {
     await formRef.value.validate();
@@ -201,16 +213,21 @@ export default (cond: Cond) => {
     // console.log(saveData, '-----saveData');
     try {
       submitting.value = true;
-      await http.post(`${BK_HCM_AJAX_URL_PREFIX}/api/v1/cloud/vendors/${cond.vendor}/applications/types/create_cvm`, saveData);
+      const url = isResourcePage
+        ? `${BK_HCM_AJAX_URL_PREFIX}/api/v1/cloud/cvms/create`
+        : `${BK_HCM_AJAX_URL_PREFIX}/api/v1/cloud/vendors/${cond.vendor}/applications/types/create_cvm`;
+      await http.post(url, saveData);
 
       Message({
         theme: 'success',
         message: t('提交成功'),
       });
-
-      router.push({
-        path: '/service/my-apply',
-      });
+      if (isResourcePage) router.back();
+      else {
+        router.push({
+          path: '/service/my-apply',
+        });
+      }
     } catch (err) {
       console.error(err);
     } finally {

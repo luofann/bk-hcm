@@ -7,6 +7,7 @@ import { CloudType } from '@/typings';
 import { VendorEnum } from '@/common/constant';
 import { ref, PropType, computed } from 'vue';
 import { useAccountStore } from '@/store';
+import { useWhereAmI } from '@/hooks/useWhereAmI';
 
 const accountStore = useAccountStore();
 
@@ -31,7 +32,7 @@ const vendorList = ref([]);
 
 const selectedBizId = computed({
   get() {
-    if(!props.bizId) emit('update:bizId', accountStore.bizs);
+    if (!props.bizId) emit('update:bizId', accountStore.bizs);
     return props.bizId || accountStore.bizs;
   },
   set(val) {
@@ -89,7 +90,7 @@ const handleChangeAccount = (account: any) => {
   vendorList.value = [
     {
       id: account.vendor,
-      name: CloudType[account.vendor],
+      name: CloudType[account?.vendor],
     },
   ];
 
@@ -97,11 +98,17 @@ const handleChangeAccount = (account: any) => {
   selectedVendor.value = vendorList.value?.[0]?.id ?? '';
   selectedRegion.value = '';
 };
+
+/**
+ * 资源下申请主机、VPC、硬盘时无需选择业务，且无需走审批流程
+ */
+const { isResourcePage } = useWhereAmI();
+
 </script>
 
 <template>
   <div class="cond-list">
-    <div class="cond-item">
+    <div class="cond-item" v-if="!isResourcePage">
       <div class="cond-label">业务</div>
       <div class="cond-content">
         <business-selector
@@ -116,7 +123,7 @@ const handleChangeAccount = (account: any) => {
       <div class="cond-content">
         <account-selector
           v-model="selectedCloudAccountId"
-          :must-biz="true"
+          :must-biz="!isResourcePage"
           :biz-id="selectedBizId"
           :type="'resource'"
           @change="handleChangeAccount">
@@ -145,7 +152,12 @@ const handleChangeAccount = (account: any) => {
     <div class="cond-item">
       <div class="cond-label">云地域</div>
       <div class="cond-content">
-        <region-selector v-model="selectedRegion" :type="type" :vendor="selectedVendor" />
+        <region-selector
+          v-model="selectedRegion"
+          :type="type"
+          :vendor="selectedVendor"
+          :account-id="selectedCloudAccountId"
+        />
       </div>
     </div>
   </div>

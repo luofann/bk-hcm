@@ -24,7 +24,6 @@ import (
 	"strings"
 
 	"hcm/cmd/hc-service/logics/res-sync/common"
-	securitygroupsync "hcm/cmd/hc-service/logics/sync/security-group"
 	"hcm/pkg/adaptor/tcloud"
 	typecore "hcm/pkg/adaptor/types/core"
 	securitygroup "hcm/pkg/adaptor/types/security-group"
@@ -74,8 +73,14 @@ func (cli *client) SecurityGroup(kt *kit.Kit, params *SyncBaseParams, opt *SyncS
 	addSlice, updateMap, delCloudIDs := common.Diff[securitygroup.TCloudSG, cloudcore.SecurityGroup[cloudcore.TCloudSecurityGroupExtension]](
 		sgFromCloud, sgFromDB, isSGChange)
 
+	if len(delCloudIDs) > 0 {
+		if err = cli.deleteSG(kt, params.AccountID, params.Region, delCloudIDs); err != nil {
+			return nil, err
+		}
+	}
+
 	if len(addSlice) > 0 {
-		_, err := cli.createSG(kt, params.AccountID, params.Region, addSlice)
+		_, err = cli.createSG(kt, params.AccountID, params.Region, addSlice)
 		if err != nil {
 			return nil, err
 		}
@@ -87,32 +92,34 @@ func (cli *client) SecurityGroup(kt *kit.Kit, params *SyncBaseParams, opt *SyncS
 		}
 	}
 
-	if len(delCloudIDs) > 0 {
-		if err := cli.deleteSG(kt, params.AccountID, params.Region, delCloudIDs); err != nil {
-			return nil, err
-		}
-	}
-
 	// 同步安全组规则
 	sgFromDB, err = cli.listSGFromDB(kt, params)
 	if err != nil {
 		return nil, err
 	}
+
+	sgIDs := make([]string, 0, len(sgFromDB))
 	for _, one := range sgFromDB {
-		// TODO: sync-todo 安全组规则同步待优化为版本3
-		_, err := securitygroupsync.SyncTCloudSGRule(kt, cli.cloudCli, cli.dbCli, one.ID)
-		if err != nil {
-			logs.Errorf("[%s] sync security group rule failed, err: %v, rid: %s", enumor.TCloud,
-				err, kt.Rid)
-			return nil, err
-		}
+		sgIDs = append(sgIDs, one.ID)
+	}
+
+	sgRuleParams := &SyncBaseParams{
+		AccountID: params.AccountID,
+		Region:    params.Region,
+		CloudIDs:  sgIDs,
+	}
+	_, err = cli.SecurityGroupRule(kt, sgRuleParams, &SyncSGRuleOption{})
+	if err != nil {
+		logs.Errorf("[%s] sg sync sgRule failed. err: %v, accountID: %s, region: %s, rid: %s",
+			enumor.TCloud, err, params.AccountID, params.Region, kt.Rid)
+		return nil, err
 	}
 
 	return new(SyncResult), nil
 }
 
 func (cli *client) updateSG(kt *kit.Kit, accountID string,
-		updateMap map[string]securitygroup.TCloudSG) error {
+	updateMap map[string]securitygroup.TCloudSG) error {
 
 	if len(updateMap) <= 0 {
 		return fmt.Errorf("sg updateMap is <= 0, not update")
@@ -150,7 +157,7 @@ func (cli *client) updateSG(kt *kit.Kit, accountID string,
 }
 
 func (cli *client) createSG(kt *kit.Kit, accountID string, region string,
-		addSlice []securitygroup.TCloudSG) ([]string, error) {
+	addSlice []securitygroup.TCloudSG) ([]string, error) {
 
 	if len(addSlice) <= 0 {
 		return nil, fmt.Errorf("sg addSlice is <= 0, not create")
@@ -252,7 +259,7 @@ func (cli *client) listSGFromCloud(kt *kit.Kit, params *SyncBaseParams) ([]secur
 }
 
 func (cli *client) listSGFromDB(kt *kit.Kit, params *SyncBaseParams) (
-		[]cloudcore.SecurityGroup[cloudcore.TCloudSecurityGroupExtension], error) {
+	[]cloudcore.SecurityGroup[cloudcore.TCloudSecurityGroupExtension], error) {
 
 	if err := params.Validate(); err != nil {
 		return nil, errf.NewFromErr(errf.InvalidParameter, err)
@@ -279,7 +286,7 @@ func (cli *client) listSGFromDB(kt *kit.Kit, params *SyncBaseParams) (
 				},
 			},
 		},
-		Page: core.DefaultBasePage,
+		Page: core.NewDefaultBasePage(),
 	}
 	result, err := cli.dbCli.TCloud.SecurityGroup.ListSecurityGroupExt(kt.Ctx, kt.Header(), req)
 	if err != nil {
@@ -325,7 +332,7 @@ func (cli *client) RemoveSecurityGroupDeleteFromCloud(kt *kit.Kit, accountID str
 		for _, one := range resultFromDB.Details {
 			cloudIDs = append(cloudIDs, one.CloudID)
 		}
-		
+
 		if len(cloudIDs) == 0 {
 			break
 		}

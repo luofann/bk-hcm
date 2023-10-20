@@ -26,7 +26,7 @@ import (
 	"hcm/pkg/runtime/filter"
 )
 
-// GetSubnet 查询路由表
+// GetRouteTables 查询路由表
 func (a *BaseApplicationHandler) GetRouteTables(vendor enumor.Vendor,
 	accountID, cloudVpcID string) ([]corecloud.BaseRouteTable, error) {
 	reqFilter := &filter.Expression{
@@ -43,7 +43,7 @@ func (a *BaseApplicationHandler) GetRouteTables(vendor enumor.Vendor,
 		a.Cts.Kit.Header(),
 		&core.ListReq{
 			Filter: reqFilter,
-			Page:   core.DefaultBasePage,
+			Page:   core.NewDefaultBasePage(),
 		},
 	)
 	if err != nil {

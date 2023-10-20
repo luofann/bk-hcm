@@ -76,6 +76,7 @@ func (h *HuaWei) ListEip(kt *kit.Kit, opt *eip.HuaWeiEipListOption) (*eip.HuaWei
 	for idx, publicIp := range *resp.Publicips {
 		status := publicIp.Status.Value()
 		eips[idx] = &eip.HuaWeiEip{
+			Name:                publicIp.Alias,
 			CloudID:             *publicIp.Id,
 			Region:              opt.Region,
 			Status:              &status,
@@ -271,7 +272,7 @@ func (h *createEipPollingHandler) Done(pollResult []*eip.HuaWeiEip) (bool, *poll
 	}
 
 	isDone := false
-	if len(unknownCloudIDs) == 0 {
+	if len(successCloudIDs) != 0 && len(successCloudIDs) == len(pollResult) {
 		isDone = true
 	}
 

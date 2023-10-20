@@ -20,8 +20,9 @@
 package aws
 
 import (
-	proto "hcm/pkg/api/cloud-server/application"
+	csdisk "hcm/pkg/api/cloud-server/disk"
 	"hcm/pkg/criteria/enumor"
+	"hcm/pkg/thirdparty/itsm"
 )
 
 // PrepareReq ...
@@ -33,8 +34,8 @@ func (a *ApplicationOfCreateAwsDisk) PrepareReq() error {
 func (a *ApplicationOfCreateAwsDisk) GenerateApplicationContent() interface{} {
 	// 需要将Vendor也存储进去
 	return &struct {
-		*proto.AwsDiskCreateReq `json:",inline"`
-		Vendor                  enumor.Vendor `json:"vendor"`
+		*csdisk.AwsDiskCreateReq `json:",inline"`
+		Vendor                   enumor.Vendor `json:"vendor"`
 	}{
 		AwsDiskCreateReq: a.req,
 		Vendor:           a.Vendor(),
@@ -44,4 +45,9 @@ func (a *ApplicationOfCreateAwsDisk) GenerateApplicationContent() interface{} {
 // PrepareReqFromContent ...
 func (a *ApplicationOfCreateAwsDisk) PrepareReqFromContent() error {
 	return nil
+}
+
+// GetItsmApprover 获取itsm审批人
+func (a *ApplicationOfCreateAwsDisk) GetItsmApprover(managers []string) []itsm.VariableApprover {
+	return a.GetItsmPlatformAndAccountApprover(managers, a.req.AccountID)
 }

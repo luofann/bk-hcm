@@ -33,6 +33,16 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+// AccountReq ...
+type AccountReq struct {
+	AccountID string `json:"account_id" validate:"required"`
+}
+
+// Validate ...
+func (req *AccountReq) Validate() error {
+	return validator.Validate.Struct(req)
+}
+
 // ListReq is a standard list operation http request.
 type ListReq struct {
 	Filter *filter.Expression `json:"filter"`
@@ -79,6 +89,19 @@ type RawCreateReq struct {
 // UnmarshalJSON unmarshal raw json to RawCreateReq
 func (r *RawCreateReq) UnmarshalJSON(raw []byte) error {
 	r.Vendor = enumor.Vendor(gjson.GetBytes(raw, "vendor").String())
+	r.Data = raw
+	return nil
+}
+
+// ResourceCreateReq raw create request, only account_id is decoded, others are raw json.
+type ResourceCreateReq struct {
+	AccountID string
+	Data      json.RawMessage
+}
+
+// UnmarshalJSON unmarshal raw json to RawCreateReq
+func (r *ResourceCreateReq) UnmarshalJSON(raw []byte) error {
+	r.AccountID = gjson.GetBytes(raw, "account_id").String()
 	r.Data = raw
 	return nil
 }

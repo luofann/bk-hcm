@@ -99,14 +99,11 @@ func (svc *diskSvc) listDisk(cts *rest.Contexts, authHandler handler.ListAuthRes
 		return nil, err
 	}
 
-	resp, err := svc.client.DataService().Global.ListDisk(
-		cts.Kit.Ctx,
-		cts.Kit.Header(),
-		&dataproto.DiskListReq{
-			Filter: req.Filter,
-			Page:   req.Page,
-		},
-	)
+	listReq := &dataproto.DiskListReq{
+		Filter: req.Filter,
+		Page:   req.Page,
+	}
+	resp, err := svc.client.DataService().Global.ListDisk(cts.Kit.Ctx, cts.Kit.Header(), listReq)
 	if err != nil {
 		return nil, err
 	}
@@ -120,14 +117,11 @@ func (svc *diskSvc) listDisk(cts *rest.Contexts, authHandler handler.ListAuthRes
 		diskIDs[idx] = diskData.ID
 	}
 
-	rels, err := svc.client.DataService().Global.ListDiskCvmRel(
-		cts.Kit.Ctx,
-		cts.Kit.Header(),
-		&datarelproto.DiskCvmRelListReq{
-			Filter: tools.ContainersExpression("disk_id", diskIDs),
-			Page:   core.DefaultBasePage,
-		},
-	)
+	listRelReq := &datarelproto.DiskCvmRelListReq{
+		Filter: tools.ContainersExpression("disk_id", diskIDs),
+		Page:   core.NewDefaultBasePage(),
+	}
+	rels, err := svc.client.DataService().Global.ListDiskCvmRel(cts.Kit.Ctx, cts.Kit.Header(), listRelReq)
 	if err != nil {
 		return nil, err
 	}
@@ -253,7 +247,7 @@ func (svc *diskSvc) retrieveDisk(cts *rest.Contexts, validHandler handler.ValidW
 		cts.Kit.Header(),
 		&datarelproto.DiskCvmRelListReq{
 			Filter: tools.EqualExpression("disk_id", diskID),
-			Page:   core.DefaultBasePage,
+			Page:   core.NewDefaultBasePage(),
 		},
 	)
 	if err != nil {
@@ -467,7 +461,7 @@ func (svc *diskSvc) detachDisk(cts *rest.Contexts, validHandler handler.ValidWit
 		cts.Kit.Header(),
 		&datarelproto.DiskCvmRelListReq{
 			Filter: tools.EqualExpression("disk_id", req.DiskID),
-			Page:   core.DefaultBasePage,
+			Page:   core.NewDefaultBasePage(),
 		},
 	)
 	if len(rels.Details) == 0 {
@@ -542,7 +536,11 @@ func (svc *diskSvc) checkDisksInBiz(kt *kit.Kit, rule filter.RuleFactory, bizID 
 
 func extractDiskID(cts *rest.Contexts) (string, error) {
 	req := new(cloudproto.DiskReq)
-	reqData, _ := ioutil.ReadAll(cts.Request.Request.Body)
+	reqData, err := ioutil.ReadAll(cts.Request.Request.Body)
+	if err != nil {
+		logs.Errorf("read request body failed, err: %v, rid: %s", err, cts.Kit.Rid)
+		return "", err
+	}
 
 	cts.Request.Request.Body = ioutil.NopCloser(bytes.NewReader(reqData))
 	if err := cts.DecodeInto(req); err != nil {

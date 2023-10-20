@@ -17,6 +17,7 @@
  * to the current version of the project delivered to anyone in the future.
  */
 
+// Package service ...
 package service
 
 import (
@@ -65,6 +66,7 @@ import (
 	"hcm/pkg/runtime/shutdown"
 	"hcm/pkg/serviced"
 	"hcm/pkg/thirdparty/esb"
+	"hcm/pkg/thirdparty/itsm"
 	"hcm/pkg/tools/ssl"
 
 	"github.com/emicklei/go-restful/v3"
@@ -79,6 +81,8 @@ type Service struct {
 	cipher     cryptography.Crypto
 	// EsbClient 调用接入ESB的第三方系统API集合
 	esbClient esb.Client
+	// itsmCli itsm client.
+	itsmCli itsm.Client
 }
 
 // NewService create a service instance.
@@ -121,12 +125,20 @@ func NewService(sd serviced.ServiceDiscover) (*Service, error) {
 		return nil, err
 	}
 
+	itsmCfg := cc.CloudServer().Itsm
+	itsmCli, err := itsm.NewClient(&itsmCfg, metrics.Register())
+	if err != nil {
+		logs.Errorf("failed to create itsm client, err: %v", err)
+		return nil, err
+	}
+
 	svr := &Service{
 		client:     apiClientSet,
 		authorizer: authorizer,
 		audit:      logicaudit.NewAudit(apiClientSet.DataService()),
 		cipher:     cipher,
 		esbClient:  esbClient,
+		itsmCli:    itsmCli,
 	}
 
 	etcdCfg, err := cc.CloudServer().Service.Etcd.ToConfig()
@@ -230,6 +242,7 @@ func (s *Service) apiSet(bkHcmUrl string) *restful.Container {
 		Cipher:     s.cipher,
 		EsbClient:  s.esbClient,
 		Logics:     logics.NewLogics(s.client),
+		ItsmCli:    s.itsmCli,
 	}
 
 	account.InitAccountService(c)

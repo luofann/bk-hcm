@@ -1,3 +1,4 @@
+/* eslint-disable no-useless-escape */
 import { computed, defineComponent, reactive, ref, watch } from 'vue';
 import { Form, Input, Select, Checkbox, Button, Radio } from 'bkui-vue';
 import ContentContainer from '../components/common/content-container.vue';
@@ -13,6 +14,7 @@ import CloudAreaName from '../components/common/cloud-area-name';
 import { Plus as PlusIcon, CloseLine as CloseLineIcon, EditLine as EditIcon } from 'bkui-vue/lib/icon';
 import GcpDataDiskFormDialog from './children/gcp-data-disk-form-dialog';
 import './index.scss';
+import { useI18n } from 'vue-i18n';
 
 import type { IOption } from '@/typings/common';
 import type { IDiskOption } from '../hooks/use-cvm-form-data';
@@ -23,6 +25,7 @@ import useCvmFormData, { getDataDiskDefaults, getGcpDataDiskDefaults } from '../
 // import { useHostStore } from '@/store/host';
 
 import { useAccountStore } from '@/store';
+import { useWhereAmI } from '@/hooks/useWhereAmI';
 
 const accountStore = useAccountStore();
 
@@ -32,7 +35,7 @@ const { Group: RadioGroup, Button: RadioButton } = Radio;
 
 export default defineComponent({
   props: {},
-  setup(props, ctx) {
+  setup() {
     const { cond, isEmptyCond } = useCondtion(ResourceTypeEnum.CVM);
     const { formData, formRef, handleFormSubmit, submitting, resetFormItemData } = useCvmFormData(cond);
     const {
@@ -41,6 +44,8 @@ export default defineComponent({
       billingModes,
       purchaseDurationUnits,
     } = useCvmOptions(cond, formData);
+    const { t } = useI18n();
+    const { isResourcePage } = useWhereAmI();
 
     const dialogState = reactive({
       gcpDataDisk: {
@@ -299,32 +304,70 @@ export default defineComponent({
             required: true,
             property: 'cloud_vpc_id',
             description: '',
-            content: () => <VpcSelector
-              v-model={formData.cloud_vpc_id}
-              bizId={cond.bizId ? cond.bizId : accountStore.bizs}
-              accountId={cond.cloudAccountId}
-              vendor={cond.vendor}
-              region={cond.region}
-              zone={formData.zone}
-              onChange={handleVpcChange}
-              clearable={false} />,
+            content: () => (
+              <div class={'component-with-detail-container'}>
+                <VpcSelector
+                  class={'component-with-detail'}
+                  v-model={formData.cloud_vpc_id}
+                  bizId={cond.bizId ? cond.bizId : accountStore.bizs}
+                  accountId={cond.cloudAccountId}
+                  vendor={cond.vendor}
+                  region={cond.region}
+                  zone={formData.zone}
+                  onChange={handleVpcChange}
+                  clearable={false}
+                />
+                {isResourcePage ? null : (
+                  <Button
+                    text
+                    theme='primary'
+                    onClick={() => {
+                      if (!formData.cloud_vpc_id) return;
+                      const url = `/#/business/vpc?cloud_id=${formData.cloud_vpc_id}&bizs=${cond.bizId}`;
+                      window.open(url, '_blank');
+                    }}>
+                    详情
+                  </Button>
+                )}
+              </div>
+            ),
           },
           {
             label: '子网',
             required: true,
             description: '',
             property: 'cloud_subnet_id',
-            content: () => <SubnetSelector
-              v-model={formData.cloud_subnet_id}
-              bizId={cond.bizId ? cond.bizId : accountStore.bizs}
-              vpcId={vpcId.value}
-              vendor={cond.vendor}
-              region={cond.region}
-              accountId={cond.cloudAccountId}
-              zone={formData.zone}
-              resourceGroup={cond.resourceGroup}
-              ref={subnetSelectorRef}
-              clearable={false} />,
+            content: () => (
+              <div class={'component-with-detail-container'}>
+                <SubnetSelector
+                  class={'component-with-detail'}
+                  v-model={formData.cloud_subnet_id}
+                  bizId={cond.bizId ? cond.bizId : accountStore.bizs}
+                  vpcId={vpcId.value}
+                  vendor={cond.vendor}
+                  region={cond.region}
+                  accountId={cond.cloudAccountId}
+                  zone={formData.zone}
+                  resourceGroup={cond.resourceGroup}
+                  ref={subnetSelectorRef}
+                  clearable={false}
+                />
+                {
+                  isResourcePage
+                    ? null
+                    : <Button
+                        text
+                        theme="primary"
+                        onClick={() => {
+                          if (!formData.cloud_subnet_id) return;
+                          const url = `/#/business/subnet?cloud_id=${formData.cloud_subnet_id}&bizs=${cond.bizId}`;
+                          window.open(url, '_blank');
+                        }}>
+                        详情
+                      </Button>
+                }
+              </div>
+            ),
           },
           {
             label: '公网IP',
@@ -346,15 +389,40 @@ export default defineComponent({
             required: true,
             description: '',
             property: 'cloud_security_group_ids',
-            content: () => <SecurityGroupSelector
-              v-model={formData.cloud_security_group_ids}
-              bizId={cond.bizId ? cond.bizId : accountStore.bizs}
-              accountId={cond.cloudAccountId}
-              region={cond.region}
-              multiple={cond.vendor !== VendorEnum.AZURE}
-              vendor={cond.vendor}
-              vpcId={vpcId.value}
-              clearable={false} />,
+            content: () => (
+              <div class={'component-with-detail-container'}>
+                <SecurityGroupSelector
+                  class={'component-with-detail'}
+                  v-model={formData.cloud_security_group_ids}
+                  bizId={cond.bizId ? cond.bizId : accountStore.bizs}
+                  accountId={cond.cloudAccountId}
+                  region={cond.region}
+                  multiple={cond.vendor !== VendorEnum.AZURE}
+                  vendor={cond.vendor}
+                  vpcId={vpcId.value}
+                  clearable={false}
+                />
+                {
+                  isResourcePage
+                    ? null
+                    : <Button
+                        text
+                        theme="primary"
+                        onClick={() => {
+                          if (!formData.cloud_security_group_ids) return;
+                          let url = `/#/business/security?bizs=${cond.bizId}&`;
+                          const params = [];
+                          for (const cloudId of formData.cloud_security_group_ids) {
+                            params.push(`cloud_id=${cloudId}`);
+                          }
+                          url += params.join('&');
+                          window.open(url, '_blank');
+                        }}>
+                        详情
+                      </Button>
+                 }
+              </div>
+            ),
           },
         ],
       },
@@ -595,8 +663,8 @@ export default defineComponent({
         {
           validator: (value: string) => {
             const pattern = cond.vendor === VendorEnum.HUAWEI
-              ? /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[()`~!@#$%^&*-+=|{}\[\]:;',.?/])[A-Za-z\d()`~!@#$%^&*-+=|{}\[\]:;',.?/]+$/
-              : /^(?=.*[A-Za-z])(?=.*\d)(?=.*[()`~!@#$%^&*-+=|{}\[\]:;',.?/])[A-Za-z\d()`~!@#$%^&*-+=|{}\[\]:;',.?/]+$/;
+              ? /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[()`~!@#$%^&*-+=|{}\[\]:;',.?/])[A-Za-z\d()`~!@#$%^&*\-+=|{}\[\]:;',.?/]+$/
+              : /^(?=.*[A-Za-z])(?=.*\d)(?=.*[()`~!@#$%^&*-+=|{}\[\]:;',.?/])[A-Za-z\d()`~!@#$%^&*\-+=|{}\[\]:;',.?/]+$/;
             return pattern.test(value);
           },
           message: '密码复杂度不符合要求',
@@ -724,8 +792,10 @@ export default defineComponent({
             ))
         }
         <div class="action-bar">
-          <Button theme='primary' loading={submitting.value} disabled={submitDisabled.value} onClick={handleFormSubmit}>提交审批</Button>
-          <Button>取消</Button>
+          <Button theme='primary' loading={submitting.value} disabled={submitDisabled.value} onClick={handleFormSubmit}>{
+            isResourcePage ? t('提交') : t('提交审批')
+          }</Button>
+          <Button>{ t('取消') }</Button>
         </div>
       </Form>
       <GcpDataDiskFormDialog

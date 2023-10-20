@@ -23,13 +23,11 @@ import (
 	"fmt"
 
 	"hcm/cmd/hc-service/logics/res-sync/common"
-	routetablesync "hcm/cmd/hc-service/logics/sync/route-table"
 	typesroutetable "hcm/pkg/adaptor/types/route-table"
 	"hcm/pkg/api/core"
 	routetable "hcm/pkg/api/core/cloud/route-table"
 	dataservice "hcm/pkg/api/data-service"
 	dataproto "hcm/pkg/api/data-service/cloud/route-table"
-	hcroutetable "hcm/pkg/api/hc-service/route-table"
 	"hcm/pkg/criteria/constant"
 	"hcm/pkg/criteria/enumor"
 	"hcm/pkg/criteria/errf"
@@ -75,6 +73,18 @@ func (cli *client) RouteTable(kt *kit.Kit, params *SyncBaseParams, opt *SyncRout
 
 	subnetMap := make(map[string]dataproto.RouteTableSubnetReq, 0)
 
+	if len(delCloudIDs) > 0 {
+		err = common.CancelRouteTableSubnetRel(kt, cli.dbCli, enumor.HuaWei, delCloudIDs)
+		if err != nil {
+			logs.Errorf("[%s] routetable batch cancel subnet rel failed. deleteIDs: %v, err: %v",
+				enumor.HuaWei, delCloudIDs, err)
+			return nil, err
+		}
+		if err = cli.deleteRouteTable(kt, params.AccountID, params.Region, delCloudIDs); err != nil {
+			return nil, err
+		}
+	}
+
 	if len(addSlice) > 0 {
 		addSubnetMap, err := cli.createRouteTable(kt, params.AccountID, params.Region, addSlice)
 		if err != nil {
@@ -95,18 +105,6 @@ func (cli *client) RouteTable(kt *kit.Kit, params *SyncBaseParams, opt *SyncRout
 		}
 	}
 
-	if len(delCloudIDs) > 0 {
-		err = common.CancelRouteTableSubnetRel(kt, cli.dbCli, enumor.HuaWei, delCloudIDs)
-		if err != nil {
-			logs.Errorf("[%s] routetable batch cancel subnet rel failed. deleteIDs: %v, err: %v",
-				enumor.HuaWei, delCloudIDs, err)
-			return nil, err
-		}
-		if err = cli.deleteRouteTable(kt, params.AccountID, params.Region, delCloudIDs); err != nil {
-			return nil, err
-		}
-	}
-
 	// 更新子网的路由表信息
 	if len(subnetMap) > 0 {
 		err = common.UpdateSubnetRouteTableByIDs(kt, enumor.HuaWei, subnetMap, cli.dbCli)
@@ -117,39 +115,33 @@ func (cli *client) RouteTable(kt *kit.Kit, params *SyncBaseParams, opt *SyncRout
 		}
 	}
 
-	// 同步路由规则
-	if err := cli.syncRoute(kt, params, routeTableFromCloud); err != nil {
+	// 同步db中路由表的路由规则
+	if err = cli.syncRoute(kt, params); err != nil {
 		return nil, err
 	}
 
 	return new(SyncResult), nil
 }
 
-func (cli *client) syncRoute(kt *kit.Kit, params *SyncBaseParams,
-	routeTableFromCloud []typesroutetable.HuaWeiRouteTable) error {
-
-	routeTableFromDB, err := cli.listRouteTableFromDB(kt, params)
+func (cli *client) syncRoute(kt *kit.Kit, params *SyncBaseParams) error {
+	existRT, err := cli.listRouteTableFromDB(kt, params)
 	if err != nil {
 		return err
 	}
 
-	req := &hcroutetable.HuaWeiRouteTableSyncReq{
-		AccountID: params.AccountID,
-		Region:    params.Region,
-	}
-	for _, one := range routeTableFromDB {
-		for _, cloudOne := range routeTableFromCloud {
-			if one.CloudID == cloudOne.CloudID {
-				// TODO: sync-todo 待优化为版本3
-				err = routetablesync.HuaWeiRouteSync(kt, req, one.ID, converter.ValToPtr(cloudOne), cli.dbCli)
-				if err != nil {
-					logs.Errorf("[%s] routetable sync update route failed. accountID: %s, region: %s, err: %v",
-						enumor.HuaWei, params.AccountID, params.Region, err)
-					return err
-				}
+	if len(existRT) != 0 {
+		rtCloudIDs := make([]string, 0, len(existRT))
+		for _, table := range existRT {
+			rtCloudIDs = append(rtCloudIDs, table.CloudID)
+		}
 
-				break
-			}
+		ruleParams := &SyncBaseParams{
+			AccountID: params.AccountID,
+			Region:    params.Region,
+			CloudIDs:  rtCloudIDs,
+		}
+		if _, err = cli.Route(kt, ruleParams, new(SyncRouteOption)); err != nil {
+			return err
 		}
 	}
 
@@ -337,7 +329,7 @@ func (cli *client) listRouteTableFromDB(kt *kit.Kit, params *SyncBaseParams) (
 				},
 			},
 		},
-		Page: core.DefaultBasePage,
+		Page: core.NewDefaultBasePage(),
 	}
 	results, err := cli.dbCli.HuaWei.RouteTable.ListRouteTableWithExt(kt.Ctx, kt.Header(), req)
 	if err != nil {

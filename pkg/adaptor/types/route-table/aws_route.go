@@ -19,6 +19,11 @@
 
 package routetable
 
+import (
+	"hcm/pkg/tools/converter"
+	"hcm/pkg/tools/hash"
+)
+
 // AwsRoute defines aws route struct.
 type AwsRoute struct {
 	CloudRouteTableID                string  `json:"cloud_route_table_id"`
@@ -38,4 +43,10 @@ type AwsRoute struct {
 	CloudVpcPeeringConnectionID      *string `json:"cloud_vpc_peering_connection_id,omitempty"`
 	State                            string  `json:"state"`
 	Propagated                       bool    `json:"propagated"`
+}
+
+// GetCloudID ...
+func (route AwsRoute) GetCloudID() string {
+	return hash.HashString(route.CloudRouteTableID + converter.PtrToVal(route.DestinationCidrBlock) +
+	converter.PtrToVal(route.DestinationIpv6CidrBlock) + converter.PtrToVal(route.CloudCarrierGatewayID))
 }

@@ -53,23 +53,29 @@ const (
 	AggregationQueryMaxPageLimit = uint(50)
 )
 
-// DefaultBasePage define default base page.
-var DefaultBasePage = &BasePage{
-	Count: false,
-	Start: 0,
-	Limit: DefaultMaxPageLimit,
+// NewDefaultBasePage define default base page.
+func NewDefaultBasePage() *BasePage {
+	return &BasePage{
+		Count: false,
+		Start: 0,
+		Limit: DefaultMaxPageLimit,
+	}
 }
 
-// CountPage define count page.
-var CountPage = &BasePage{
-	Count: true,
+// NewCountPage define count page.
+func NewCountPage() *BasePage {
+	return &BasePage{
+		Count: true,
+	}
 }
 
-// DefaultPageOption is the default BasePage's option.
-var DefaultPageOption = &PageOption{
-	EnableUnlimitedLimit: false,
-	MaxLimit:             DefaultMaxPageLimit,
-	DisabledSort:         false,
+// NewDefaultPageOption is the default BasePage's option.
+func NewDefaultPageOption() *PageOption {
+	return &PageOption{
+		EnableUnlimitedLimit: false,
+		MaxLimit:             DefaultMaxPageLimit,
+		DisabledSort:         false,
+	}
 }
 
 // PageOption defines the options to validate the

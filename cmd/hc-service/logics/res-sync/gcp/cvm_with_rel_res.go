@@ -28,6 +28,7 @@ import (
 	typecvm "hcm/pkg/adaptor/types/cvm"
 	typesdisk "hcm/pkg/adaptor/types/disk"
 	typeseip "hcm/pkg/adaptor/types/eip"
+	adtysubnet "hcm/pkg/adaptor/types/subnet"
 	"hcm/pkg/criteria/constant"
 	"hcm/pkg/criteria/enumor"
 	"hcm/pkg/criteria/validator"
@@ -80,6 +81,8 @@ func (cli *client) CvmWithRelRes(kt *kit.Kit, params *SyncBaseParams, opt *SyncC
 		if _, err = cli.Cvm(kt, params, syncCvmOption); err != nil {
 			return nil, err
 		}
+
+		return new(SyncResult), nil
 	}
 
 	// step2: 获取cvm和关联资源的关联关系
@@ -321,7 +324,7 @@ func (cli *client) getSubnetMapFromCloud(kt *kit.Kit, region string, cvmFromClou
 	result := make(map[string]string, 0)
 	split := slice.Split(selfLinks, core.GcpSelfLinkMaxQueryLimit)
 	for _, part := range split {
-		opt := &types.GcpSubnetListOption{
+		opt := &adtysubnet.GcpSubnetListOption{
 			GcpListOption: core.GcpListOption{
 				Page: &core.GcpPage{
 					PageSize: core.GcpSelfLinkMaxQueryLimit,
@@ -383,16 +386,14 @@ func (cli *client) buildCvmRelManger(kt *kit.Kit, cvmFromCloud []typecvm.GcpCvm,
 		// Disk
 		for _, disk := range cvm.Disks {
 			if disk != nil {
+				if disk.Boot {
+					diskBootMap[disk.Source] = struct{}{}
+				}
 				diskID, exist := diskMap[disk.Source]
 				if !exist {
 					return nil, nil, fmt.Errorf("disk: %s not found", disk.Source)
 				}
-
 				mgr.CvmAppendAssResCloudID(cvm.GetCloudID(), enumor.DiskCloudResType, diskID)
-
-				if disk.Boot {
-					diskBootMap[disk.Source] = struct{}{}
-				}
 			}
 		}
 
@@ -417,18 +418,14 @@ func (cli *client) buildCvmRelManger(kt *kit.Kit, cvmFromCloud []typecvm.GcpCvm,
 				mgr.CvmAppendAssResCloudID(cvm.GetCloudID(), enumor.SubnetCloudResType, subnetID)
 
 				// Eip
-				if len(networkInterface.AccessConfigs) > 0 {
-					for _, config := range networkInterface.AccessConfigs {
-						eipCloudID, exist := eipMap[config.NatIP]
-						if exist {
-							mgr.CvmAppendAssResCloudID(cvm.GetCloudID(), enumor.EipCloudResType, eipCloudID)
-						}
+				for _, config := range networkInterface.AccessConfigs {
+					if eipCloudID, exist := eipMap[config.NatIP]; exist {
+						mgr.CvmAppendAssResCloudID(cvm.GetCloudID(), enumor.EipCloudResType, eipCloudID)
 					}
 				}
 			}
 		}
 	}
-
 	return diskBootMap, mgr, nil
 }
 

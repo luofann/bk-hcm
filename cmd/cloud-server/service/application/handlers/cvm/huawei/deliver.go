@@ -107,8 +107,7 @@ func (a *ApplicationOfCreateHuaWeiCvm) assignToBiz(cloudCvmIDs []string) ([]stri
 	}
 	if len(diskIDs) > 0 {
 		_, err = a.Client.DataService().Global.BatchUpdateDisk(
-			a.Cts.Kit.Ctx,
-			a.Cts.Kit.Header(),
+			a.Cts.Kit.Ctx, a.Cts.Kit.Header(),
 			&protodisk.DiskBatchUpdateReq{
 				IDs:     diskIDs,
 				BkBizID: uint64(req.BkBizID),
@@ -132,9 +131,8 @@ func (a *ApplicationOfCreateHuaWeiCvm) assignToBiz(cloudCvmIDs []string) ([]stri
 		return cvmIDs, err
 	}
 	if len(niIDs) > 0 {
-		err = a.Client.DataService().Global.NetworkInterface.BatchUpdateNetworkInterfaceCommonInfo(
-			a.Cts.Kit.Ctx,
-			a.Cts.Kit.Header(),
+		err = a.Client.DataService().Global.NetworkInterface.BatchUpdateNICommonInfo(
+			a.Cts.Kit.Ctx, a.Cts.Kit.Header(),
 			&protoni.NetworkInterfaceCommonInfoBatchUpdateReq{
 				IDs:     niIDs,
 				BkBizID: int64(req.BkBizID),

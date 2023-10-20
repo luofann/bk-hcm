@@ -1,4 +1,4 @@
-import { defineComponent, reactive, watch, ref, nextTick } from 'vue';
+import { defineComponent, reactive, watch, ref, nextTick, onMounted } from 'vue';
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router';
 import type { RouteRecordRaw } from 'vue-router';
 import { Menu, Navigation, Dropdown, Select } from 'bkui-vue';
@@ -8,12 +8,19 @@ import workbench from '@/router/module/workbench';
 import resource from '@/router/module/resource';
 import service from '@/router/module/service';
 import business from '@/router/module/business';
-import { classes, deleteCookie } from '@/common/util';
+import { classes } from '@/common/util';
 import logo from '@/assets/image/logo.png';
 import './index.scss';
 import { useUserStore, useAccountStore, useCommonStore } from '@/store';
 import { useVerify } from '@/hooks';
 import { useI18n } from 'vue-i18n';
+import { useRegionsStore } from '@/store/useRegionsStore';
+import { LANGUAGE_TYPE, VendorEnum } from '@/common/constant';
+import { useBusinessMapStore } from '@/store/useBusinessMap';
+import { useCloudAreaStore } from '@/store/useCloudAreaStore';
+import cookie from 'cookie';
+import NoPermission from '@/views/resource/NoPermission';
+import usePagePermissionStore from '@/store/usePagePermissionStore';
 
 // import { CogShape } from 'bkui-vue/lib/icon';
 // import { useProjectList } from '@/hooks';
@@ -32,6 +39,8 @@ export default defineComponent({
     const router = useRouter();
     const userStore = useUserStore();
     const accountStore = useAccountStore();
+    const { fetchBusinessMap } = useBusinessMapStore();
+    const { fetchAllCloudAreas } = useCloudAreaStore();
     const { Option } = Select;
 
     let topMenuActiveItem = '';
@@ -45,8 +54,8 @@ export default defineComponent({
     const isRouterAlive = ref<Boolean>(true);
     const curYear = ref((new Date()).getFullYear());
     const isMenuOpen = ref<boolean>(true);
-
-
+    const language = ref(cookie.parse(document.cookie).blueking_language || 'zh-cn');
+    const { hasPagePermission, permissionMsg, logout } = usePagePermissionStore();
     // 获取业务列表
     const getBusinessList = async () => {
       try {
@@ -78,6 +87,7 @@ export default defineComponent({
           topMenuActiveItem = 'business';
           menus = reactive(business);
           path = '/business/host';
+          if (!accountStore.bizs) accountStore.updateBizsId(useBusinessMapStore().businessList?.[0]?.id);
           getBusinessList();    // 业务下需要获取业务列表
           break;
         case 'resource':
@@ -156,11 +166,28 @@ export default defineComponent({
       }
     };
 
-    const logout = () => {
-      deleteCookie('bk_token');
-      deleteCookie('bk_ticket');
-      window.location.href = `${window.PROJECT_CONFIG.BK_LOGIN_URL}/?is_from_logout=1&c_url=${window.location.href}`;
+    const saveLanguage = async (val: string) => {
+      return new Promise((resovle) => {
+        const { BK_COMPONENT_API_URL } = window.PROJECT_CONFIG;
+        const url = `${BK_COMPONENT_API_URL}/api/c/compapi/v2/usermanage/fe_update_user_language/language=${val}`;
+
+        const scriptTag = document.createElement('script');
+        scriptTag.setAttribute('type', 'text/javascript');
+        scriptTag.setAttribute('src', url);
+        const headTag = document.getElementsByTagName('head')[0];
+        headTag.appendChild(scriptTag);
+        resovle(val);
+      });
     };
+
+    watch(
+      () => language.value,
+      async (val) => {
+        document.cookie = `blueking_language=${val}; domain=${window.PROJECT_CONFIG.BK_DOMAIN}`;
+        await saveLanguage(val);
+        location.reload();
+      },
+    );
 
     // 选择业务
     const handleChange = async () => {
@@ -189,6 +216,20 @@ export default defineComponent({
     const handleToggle = (val: any) => {
       isMenuOpen.value = val;
     };
+
+    const { fetchRegions } = useRegionsStore();
+
+    /**
+     * 在这里获取项目公共数据并缓存
+     */
+    onMounted(() => {
+      fetchRegions(VendorEnum.TCLOUD);
+      fetchRegions(VendorEnum.HUAWEI);
+      fetchBusinessMap();
+      fetchAllCloudAreas();
+    });
+
+    if (!hasPagePermission) return () => <NoPermission message={permissionMsg}/>;
 
     return () => (
       <main class="flex-column full-page">
@@ -227,7 +268,37 @@ export default defineComponent({
                             </a>
                           ))}
                         </section>
-                        <aside class="header-user">
+                        <aside class='header-lang'>
+                          <Dropdown
+                            trigger='click'
+                          >
+                            {{
+                              default: () => (
+                                <span class="cursor-pointer flex-row align-items-center ">
+                                  {
+                                    language.value === LANGUAGE_TYPE.en ? 'English' : '中文'
+                                  }
+                                  <i class={'icon hcm-icon bkhcm-icon-down-shape pl5'}/>
+                                </span>
+                              ),
+                              content: () => (
+                                <DropdownMenu>
+                                  <DropdownItem onClick={() => {
+                                    language.value = LANGUAGE_TYPE.zh_cn;
+                                  }}>
+                                  {'中文'}
+                                  </DropdownItem>
+                                  <DropdownItem onClick={() => {
+                                    language.value = LANGUAGE_TYPE.en;
+                                  }}>
+                                  {'English'}
+                                  </DropdownItem>
+                                </DropdownMenu>
+                              ),
+                            }}
+                          </Dropdown>
+                        </aside>
+                        <aside class='header-user'>
                           <Dropdown
                             trigger='click'
                           >

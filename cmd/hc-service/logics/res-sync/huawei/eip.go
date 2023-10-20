@@ -73,6 +73,12 @@ func (cli *client) Eip(kt *kit.Kit, params *SyncBaseParams, opt *SyncEipOption) 
 	addEip, updateMap, delCloudIDs := common.Diff[*typeseip.HuaWeiEip,
 		*dataeip.EipExtResult[dataeip.HuaWeiEipExtensionResult]](eipFromCloud, eipFromDB, isEipChange)
 
+	if len(delCloudIDs) > 0 {
+		if err = cli.deleteEip(kt, params.AccountID, params.Region, delCloudIDs); err != nil {
+			return nil, err
+		}
+	}
+
 	if len(addEip) > 0 {
 		if err = cli.createEip(kt, params.AccountID, addEip, opt.BkBizID); err != nil {
 			return nil, err
@@ -81,12 +87,6 @@ func (cli *client) Eip(kt *kit.Kit, params *SyncBaseParams, opt *SyncEipOption) 
 
 	if len(updateMap) > 0 {
 		if err = cli.updateEip(kt, params.AccountID, updateMap); err != nil {
-			return nil, err
-		}
-	}
-
-	if len(delCloudIDs) > 0 {
-		if err = cli.deleteEip(kt, params.AccountID, params.Region, delCloudIDs); err != nil {
 			return nil, err
 		}
 	}
@@ -208,6 +208,7 @@ func (cli *client) updateEip(kt *kit.Kit, accountID string, updateMap map[string
 	for id, one := range updateMap {
 		eip := &dataeip.EipExtUpdateReq[dataeip.HuaWeiEipExtensionUpdateReq]{
 			ID:     id,
+			Name:   one.Name,
 			Status: converter.PtrToVal(one.Status),
 			Extension: &dataeip.HuaWeiEipExtensionUpdateReq{
 				PortID:              one.PortID,
@@ -326,7 +327,7 @@ func (cli *client) listEipFromDB(kt *kit.Kit, params *SyncBaseParams) (
 				},
 			},
 		},
-		Page: core.DefaultBasePage,
+		Page: core.NewDefaultBasePage(),
 	}
 	result, err := cli.dbCli.HuaWei.ListEip(kt.Ctx, kt.Header(), req)
 	if err != nil {
@@ -339,6 +340,11 @@ func (cli *client) listEipFromDB(kt *kit.Kit, params *SyncBaseParams) (
 }
 
 func isEipChange(cloud *typeseip.HuaWeiEip, db *dataeip.EipExtResult[dataeip.HuaWeiEipExtensionResult]) bool {
+
+	if !assert.IsPtrStringEqual(cloud.Name, db.Name) {
+		return true
+	}
+
 	if converter.PtrToVal(cloud.Status) != db.Status {
 		return true
 	}

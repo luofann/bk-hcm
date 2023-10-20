@@ -28,13 +28,24 @@ import (
 	"strings"
 
 	"hcm/pkg/criteria/constant"
+	"hcm/pkg/criteria/errf"
 	"hcm/pkg/kit"
 	"hcm/pkg/logs"
+	"hcm/pkg/rest"
 	"hcm/pkg/thirdparty/esb"
 	"hcm/pkg/tools/uuid"
 
 	"github.com/emicklei/go-restful/v3"
 )
+
+// ConvMap conv 1302403 to hcm error
+var ConvMap map[int32]int32 = map[int32]int32{
+	1302403: errf.UserNoAppAccess,
+}
+
+type loginVerifyRespData struct {
+	UserName string `json:"username"`
+}
 
 func isITSMCallbackRequest(req *restful.Request) bool {
 	if strings.HasSuffix(req.Request.RequestURI, "/api/v1/cloud/applications/approve") &&
@@ -44,7 +55,9 @@ func isITSMCallbackRequest(req *restful.Request) bool {
 	return false
 }
 
-func newCheckLogin(esbClient esb.Client, bkLoginUrl, bkLoginCookieName string) func(*restful.Request) (string, error) {
+func newCheckLogin(esbClient esb.Client, bkLoginUrl, bkLoginCookieName string) func(
+	*restful.Request) (*rest.Response, error) {
+
 	if bkLoginCookieName == "bk_ticket" {
 		// 解析Login URL
 		oaLoginClient, err := newOALoginClient(bkLoginUrl)
@@ -53,38 +66,44 @@ func newCheckLogin(esbClient esb.Client, bkLoginUrl, bkLoginCookieName string) f
 			panic(err)
 		}
 
-		return func(req *restful.Request) (string, error) {
+		return func(req *restful.Request) (*rest.Response, error) {
 			// 获取cookie
 			cookie, err := req.Request.Cookie(bkLoginCookieName)
 			// Note: err只有一个ErrNoCookie可能，所以这里是无登录票据的情况
 			if err != nil || cookie.Value == "" {
-				return "", fmt.Errorf("%s cookie don't exists", bkLoginCookieName)
+				return nil, fmt.Errorf("%s cookie don't exists", bkLoginCookieName)
 			}
 			// 校验bk_token是否有效
-			username, err := oaLoginClient.Verify(req.Request.Context(), cookie.Value)
+			ret, err := oaLoginClient.Verify(req.Request.Context(), cookie.Value)
 			if err != nil {
-				return "", err
+				return nil, err
 			}
-			return username, nil
+			return ret, nil
 		}
 	}
 
 	// 默认只能是bk_token,不支持其他的
 	bkLoginCookieName = "bk_token"
 
-	return func(req *restful.Request) (string, error) {
+	return func(req *restful.Request) (*rest.Response, error) {
 		// 获取cookie
 		cookie, err := req.Request.Cookie(bkLoginCookieName)
 		// Note: err只有一个ErrNoCookie可能，所以这里是无登录票据的情况
 		if err != nil || cookie.Value == "" {
-			return "", fmt.Errorf("%s cookie don't exists", bkLoginCookieName)
+			return nil, fmt.Errorf("%s cookie don't exists", bkLoginCookieName)
 		}
 		// 校验bk_token是否有效
-		username, err := esbClient.Login().IsLogin(req.Request.Context(), cookie.Value)
+		resp, err := esbClient.Login().IsLogin(req.Request.Context(), cookie.Value)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
-		return username, nil
+		return &rest.Response{
+			Code:    int32(resp.Code),
+			Message: resp.Message,
+			Data: loginVerifyRespData{
+				UserName: resp.Data.Username,
+			},
+		}, nil
 	}
 }
 
@@ -101,10 +120,28 @@ func NewUserAuthenticateFilter(esbClient esb.Client, bkLoginUrl, bkLoginCookieNa
 			username = "itsm_callback"
 			req.Request.Header.Set(constant.RidKey, uuid.UUID())
 		} else {
-			username, err = checkLogin(req)
+			ret, err := checkLogin(req)
 			if err != nil {
-				resp.WriteError(http.StatusUnauthorized, err)
+				errfError := errf.Error(err)
+				code := errfError.Code
+				if value, exsit := ConvMap[code]; exsit {
+					code = value
+				} else {
+					code = errf.Unknown
+				}
+				resp.WriteAsJson(rest.BaseResp{
+					Code:    code,
+					Message: errfError.Message,
+				})
 				return
+			}
+			if ret != nil {
+				dataContent, ok := ret.Data.(loginVerifyRespData)
+				if ok {
+					username = dataContent.UserName
+				} else {
+					logs.Errorf("change ret data to loginVerifyRespData failed")
+				}
 			}
 		}
 
@@ -127,7 +164,8 @@ func NewUserAuthenticateFilter(esbClient esb.Client, bkLoginUrl, bkLoginCookieNa
 		}
 		// request and response details landing log for monitoring and troubleshooting problem.
 		logs.Infof("uri: %s, method: %s, body: %s, appcode: %s, user: %s, remote addr: %s, "+
-			"rid: %s", req.Request.RequestURI, req.Request.Method, body, kt.AppCode, kt.User, req.Request.RemoteAddr, kt.Rid)
+			"rid: %s", req.Request.RequestURI, req.Request.Method, body, kt.AppCode, kt.User,
+			req.Request.RemoteAddr, kt.Rid)
 
 		chain.ProcessFilter(req, resp)
 	}

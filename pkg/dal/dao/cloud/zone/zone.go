@@ -17,6 +17,7 @@
  * to the current version of the project delivered to anyone in the future.
  */
 
+// Package zone ...
 package zone
 
 import (
@@ -118,7 +119,7 @@ func (z ZoneDao) List(kt *kit.Kit, opt *types.ListOption) (*typeszone.ListZoneDe
 	}
 
 	if err := opt.Validate(filter.NewExprOption(filter.RuleFields(zone.ZoneColumns.ColumnTypes())),
-		core.DefaultPageOption); err != nil {
+		core.NewDefaultPageOption()); err != nil {
 		return nil, err
 	}
 

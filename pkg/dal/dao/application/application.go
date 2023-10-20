@@ -17,6 +17,7 @@
  * to the current version of the project delivered to anyone in the future.
  */
 
+// Package application ...
 package application
 
 import (
@@ -129,7 +130,7 @@ func (a *ApplicationDao) List(kt *kit.Kit, opt *types.ListOption) (*types.ListAp
 	}
 
 	if err := opt.Validate(filter.NewExprOption(filter.RuleFields(application.ApplicationColumns.ColumnTypes())),
-		core.DefaultPageOption); err != nil {
+		core.NewDefaultPageOption()); err != nil {
 		return nil, err
 	}
 

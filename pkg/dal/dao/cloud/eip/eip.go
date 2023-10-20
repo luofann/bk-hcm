@@ -17,6 +17,7 @@
  * to the current version of the project delivered to anyone in the future.
  */
 
+// Package eip ...
 package eip
 
 import (
@@ -129,7 +130,7 @@ func (eipDao EipDao) List(kt *kit.Kit, opt *types.ListOption) (*cloud.EipListRes
 	columnTypes["extension.resource_group_name"] = enumor.String
 	columnTypes["extension.zones"] = enumor.Json
 	if err := opt.Validate(filter.NewExprOption(filter.RuleFields(columnTypes)),
-		core.DefaultPageOption); err != nil {
+		core.NewDefaultPageOption()); err != nil {
 		return nil, err
 	}
 
@@ -177,7 +178,8 @@ func (eipDao EipDao) UpdateByIDWithTx(kt *kit.Kit, tx *sqlx.Tx, eipID string, up
 		return err
 	}
 
-	opts := utils.NewFieldOptions().AddBlankedFields("instance_id").AddIgnoredFields(types.DefaultIgnoredFields...)
+	opts := utils.NewFieldOptions().AddBlankedFields("instance_id", "name",
+		"memo").AddIgnoredFields(types.DefaultIgnoredFields...)
 	setExpr, toUpdate, err := utils.RearrangeSQLDataWithOption(updateData, opts)
 	if err != nil {
 		return fmt.Errorf("prepare parsed sql set filter expr failed, err: %v", err)

@@ -5,6 +5,7 @@ interface ILANG {
 }
 
 const lang: ILANG = {
+  '无该应用访问权限': ['No access permission for this application.'],
   '你好世界': ['hello world'],
   '海垒2.0': ['HCM 2.0'],
   '退出': ['Quit'],
@@ -565,6 +566,7 @@ const lang: ILANG = {
   '删除脚本': ['Delete script'],
   '删除作业成功': ['Delete job succeeded'],
   '提交': ['Submit'],
+  '提交审批': ['Submit for approval'],
   '作业': ['Operation'],
   '新建': ['New'],
   '通用脚本': ['Universal script'],

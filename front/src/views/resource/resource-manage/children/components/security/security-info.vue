@@ -1,8 +1,5 @@
 <script lang="ts" setup>
-// import InfoList from '../../../common/info-list/info-list';
 import DetailInfo from '@/views/resource/resource-manage/common/info/detail-info';
-
-import useDetail from '@/views/resource/resource-manage/hooks/use-detail';
 
 import {
   useResourceStore,
@@ -18,6 +15,7 @@ import {
 
 import {
   Message } from 'bkui-vue';
+import { useRegionsStore } from '@/store/useRegionsStore';
 
 const props = defineProps({
   id: {
@@ -26,6 +24,15 @@ const props = defineProps({
   vendor: {
     type: String as PropType<any>,
   },
+  loading: {
+    type: Boolean as PropType<boolean>,
+  },
+  detail: {
+    type: Object as PropType<any>,
+  },
+  getDetail: {
+    type: Function as PropType<() => void>,
+  },
 });
 
 const {
@@ -33,6 +40,7 @@ const {
 } = useI18n();
 
 const resourceStore = useResourceStore();
+const { getRegionName } = useRegionsStore();
 
 const settingInfo: any[] = [
   {
@@ -63,6 +71,7 @@ const settingInfo: any[] = [
   {
     name: t('地域'),
     prop: 'region',
+    render: () => getRegionName(props.vendor, props.detail?.region),
   },
   {
     name: t('创建时间'),
@@ -79,14 +88,7 @@ const settingInfo: any[] = [
   },
 ];
 
-const {
-  loading,
-  detail,
-  getDetail,
-} = useDetail(
-  'security_groups',
-  props.id,
-);
+
 if (props.vendor === 'tcloud' || props.vendor === 'aws' || props.vendor === 'huawei') {
   settingInfo.splice(8, 0, {
     name: t('关联CVM实例数'),
@@ -134,7 +136,7 @@ const handleChange = async (val: any) => {
       theme: 'success',
       message: t('更新成功'),
     });
-    getDetail();
+    props.getDetail();
   } catch (error) {
 
   }
@@ -143,8 +145,8 @@ const handleChange = async (val: any) => {
 
 <template>
   <bk-loading
-    :loading="loading"
+    :loading="props.loading"
   >
-    <detail-info class="mt20" :fields="settingInfo" :detail="detail" @change="handleChange"></detail-info>
+    <detail-info class="mt20" :fields="settingInfo" :detail="props.detail" @change="handleChange"></detail-info>
   </bk-loading>
 </template>

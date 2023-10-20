@@ -22,7 +22,7 @@ package cvm
 import (
 	"fmt"
 
-	proto "hcm/pkg/api/cloud-server"
+	proto "hcm/pkg/api/cloud-server/cvm"
 	"hcm/pkg/api/core"
 	dataproto "hcm/pkg/api/data-service/cloud"
 	"hcm/pkg/criteria/constant"
@@ -41,7 +41,6 @@ func (svc *cvmSvc) AssignCvmToBiz(cts *rest.Contexts) (interface{}, error) {
 	if err := cts.DecodeInto(req); err != nil {
 		return nil, err
 	}
-
 	if err := req.Validate(); err != nil {
 		return nil, errf.NewFromErr(errf.InvalidParameter, err)
 	}
@@ -73,26 +72,17 @@ func (svc *cvmSvc) AssignCvmToBiz(cts *rest.Contexts) (interface{}, error) {
 		Filter: &filter.Expression{
 			Op: filter.And,
 			Rules: []filter.RuleFactory{
-				&filter.AtomRule{
-					Field: "id",
-					Op:    filter.In.Factory(),
-					Value: req.CvmIDs,
-				},
-				&filter.AtomRule{
-					Field: "bk_biz_id",
-					Op:    filter.NotEqual.Factory(),
-					Value: constant.UnassignedBiz,
-				},
+				&filter.AtomRule{Field: "id", Op: filter.In.Factory(), Value: req.CvmIDs},
+				&filter.AtomRule{Field: "bk_biz_id", Op: filter.NotEqual.Factory(), Value: constant.UnassignedBiz},
 			},
 		},
-		Page: core.DefaultBasePage,
+		Page: core.NewDefaultBasePage(),
 	}
 	result, err := svc.client.DataService().Global.Cvm.ListCvm(cts.Kit.Ctx, cts.Kit.Header(), listReq)
 	if err != nil {
 		logs.Errorf("list cvm failed, err: %v, rid: %s", err, cts.Kit.Rid)
 		return nil, err
 	}
-
 	if len(result.Details) != 0 {
 		ids := make([]string, len(result.Details))
 		for index, one := range result.Details {
@@ -102,16 +92,12 @@ func (svc *cvmSvc) AssignCvmToBiz(cts *rest.Contexts) (interface{}, error) {
 	}
 
 	// create assign audit.
-	err = svc.audit.ResBizAssignAudit(cts.Kit, enumor.CvmAuditResType, req.CvmIDs, req.BkBizID)
-	if err != nil {
+	if err = svc.audit.ResBizAssignAudit(cts.Kit, enumor.CvmAuditResType, req.CvmIDs, req.BkBizID); err != nil {
 		logs.Errorf("create assign audit failed, err: %v, rid: %s", err, cts.Kit.Rid)
 		return nil, err
 	}
 
-	update := &dataproto.CvmCommonInfoBatchUpdateReq{
-		IDs:     req.CvmIDs,
-		BkBizID: req.BkBizID,
-	}
+	update := &dataproto.CvmCommonInfoBatchUpdateReq{IDs: req.CvmIDs, BkBizID: req.BkBizID}
 	if err := svc.client.DataService().Global.Cvm.BatchUpdateCvmCommonInfo(cts.Kit.Ctx, cts.Kit.Header(),
 		update); err != nil {
 

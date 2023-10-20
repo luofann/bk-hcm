@@ -16,9 +16,18 @@ const props = defineProps({
   filter: {
     type: Object as PropType<FilterType>,
   },
+  whereAmI: {
+    type: String
+  }
 });
 
 const columns = useColumns('networkInterface');
+
+const {
+  searchData,
+  searchValue,
+  filter
+} = useFilter(props);
 
 const {
   datas,
@@ -27,7 +36,10 @@ const {
   handlePageChange,
   handlePageSizeChange,
   handleSort,
-} = useQueryList(props, 'network_interfaces');
+} = useQueryList({
+  ...props,
+  filter: filter.value
+}, 'network_interfaces');
 
 const selectSearchData = computed(() => {
   return [
@@ -42,10 +54,7 @@ const selectSearchData = computed(() => {
   ];
 });
 
-const {
-  searchData,
-  searchValue,
-} = useFilter(props);
+
 </script>
 
 <template>

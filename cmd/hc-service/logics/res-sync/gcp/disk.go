@@ -71,6 +71,12 @@ func (cli *client) Disk(kt *kit.Kit, params *SyncBaseParams, opt *SyncDiskOption
 	addSlice, updateMap, delCloudIDs := common.Diff[adaptordisk.GcpDisk, *disk.DiskExtResult[disk.GcpDiskExtensionResult]](
 		diskFromCloud, diskFromDB, isDiskChange)
 
+	if len(delCloudIDs) > 0 {
+		if err := cli.deleteDisk(kt, params.AccountID, opt.Zone, delCloudIDs); err != nil {
+			return nil, err
+		}
+	}
+
 	if len(addSlice) > 0 {
 		if err = cli.createDisk(kt, params.AccountID, opt.Zone, opt.BootMap, addSlice); err != nil {
 			return nil, err
@@ -79,12 +85,6 @@ func (cli *client) Disk(kt *kit.Kit, params *SyncBaseParams, opt *SyncDiskOption
 
 	if len(updateMap) > 0 {
 		if err = cli.updateDisk(kt, params.AccountID, opt.BootMap, updateMap); err != nil {
-			return nil, err
-		}
-	}
-
-	if len(delCloudIDs) > 0 {
-		if err := cli.deleteDisk(kt, params.AccountID, opt.Zone, delCloudIDs); err != nil {
 			return nil, err
 		}
 	}
@@ -103,7 +103,7 @@ func (cli *client) listDiskFromCloud(kt *kit.Kit, params *SyncBaseParams,
 		Zone:     option.Zone,
 		CloudIDs: params.CloudIDs,
 	}
-	result, _, err := cli.cloudCli.ListDiskNew(kt, opt)
+	result, _, err := cli.cloudCli.ListDisk(kt, opt)
 	if err != nil {
 		logs.Errorf("[%s] list disk from cloud failed, err: %v, account: %s, opt: %v, rid: %s", enumor.Gcp,
 			err, params.AccountID, opt, kt.Rid)
@@ -141,7 +141,7 @@ func (cli *client) listDiskFromDBBySelfLink(kt *kit.Kit, params *ListDiskBySelfL
 				},
 			},
 		},
-		Page: core.DefaultBasePage,
+		Page: core.NewDefaultBasePage(),
 	}
 	result, err := cli.dbCli.Gcp.ListDisk(kt.Ctx, kt.Header(), req)
 	if err != nil {
@@ -181,7 +181,7 @@ func (cli *client) listDiskFromDB(kt *kit.Kit, params *SyncBaseParams, option *S
 				},
 			},
 		},
-		Page: core.DefaultBasePage,
+		Page: core.NewDefaultBasePage(),
 	}
 	result, err := cli.dbCli.Gcp.ListDisk(kt.Ctx, kt.Header(), req)
 	if err != nil {

@@ -103,7 +103,7 @@ func (h *HuaWei) AssociateEip(
 		cts.Kit.Header(),
 		&core.ListReq{
 			Filter: tools.EqualExpression("network_interface_id", req.NetworkInterfaceID),
-			Page:   core.DefaultBasePage,
+			Page:   core.NewDefaultBasePage(),
 		},
 	)
 	if err != nil {
@@ -155,7 +155,7 @@ func (h *HuaWei) DisassociateEip(
 		cts.Kit.Header(),
 		&datarelproto.EipCvmRelListReq{
 			Filter: tools.ContainersExpression("eip_id", []string{req.EipID}),
-			Page:   core.DefaultBasePage,
+			Page:   core.NewDefaultBasePage(),
 		},
 	)
 	if len(rels.Details) == 0 {
@@ -189,7 +189,7 @@ func (h *HuaWei) DisassociateEip(
 }
 
 // CreateEip ...
-func (h *HuaWei) CreateEip(cts *rest.Contexts) (interface{}, error) {
+func (h *HuaWei) CreateEip(cts *rest.Contexts, bkBizID int64) (interface{}, error) {
 	req := new(cloudproto.HuaWeiEipCreateReq)
 	if err := cts.DecodeInto(req); err != nil {
 		return nil, err
@@ -197,18 +197,6 @@ func (h *HuaWei) CreateEip(cts *rest.Contexts) (interface{}, error) {
 
 	if err := req.Validate(); err != nil {
 		return nil, errf.NewFromErr(errf.InvalidParameter, err)
-	}
-
-	bkBizID, err := cts.PathParameter("bk_biz_id").Int64()
-	if err != nil {
-		return nil, errf.NewFromErr(errf.DecodeRequestFailed, err)
-	}
-
-	// validate biz and authorize
-	authRes := meta.ResourceAttribute{Basic: &meta.Basic{Type: meta.Eip, Action: meta.Create}, BizID: bkBizID}
-	err = h.authorizer.AuthorizeWithPerm(cts.Kit, authRes)
-	if err != nil {
-		return nil, err
 	}
 
 	resp, err := h.client.HCService().HuaWei.Eip.CreateEip(
@@ -250,7 +238,7 @@ func (h *HuaWei) RetrieveEip(cts *rest.Contexts, eipID string, cvmID string) (*c
 	rels, err := h.client.DataService().Global.NetworkInterfaceCvmRel.List(
 		cts.Kit.Ctx,
 		cts.Kit.Header(),
-		&core.ListReq{Filter: tools.ContainersExpression("cvm_id", []string{cvmID}), Page: core.DefaultBasePage},
+		&core.ListReq{Filter: tools.ContainersExpression("cvm_id", []string{cvmID}), Page: core.NewDefaultBasePage()},
 	)
 	if err != nil {
 		return nil, err
@@ -288,7 +276,7 @@ func (h *HuaWei) RetrieveEip(cts *rest.Contexts, eipID string, cvmID string) (*c
 					},
 				}},
 			},
-		}, Page: core.DefaultBasePage})
+		}, Page: core.NewDefaultBasePage()})
 	if err != nil {
 		return nil, err
 	}

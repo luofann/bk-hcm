@@ -1,7 +1,8 @@
 global:
   imageRegistry: hub.bktencent.com
-  imagePullSecrets: []
+  imagePullSecrets: [ ]
   imagePullPolicy: IfNotPresent
+  imageTag: 1.1.22
   storageClass: ""
 
   ## 蓝鲸主域名访问协议http/https
@@ -19,7 +20,7 @@ ingress:
   ## 一旦确定，不能随意修改，否则会影响(1)注册到IAM的回调地址 (2) 注册到APIGateway的网关资源后端Host和Path
   shareDomainEnable: true
   host: bkhcm.example.com
-  annotations: {}
+  annotations: { }
   tls: false
   apiserver:
     enabled: true
@@ -58,10 +59,10 @@ apiserver:
   ## pod配置
   ##
   replicas: 1
-  podAnnotations: {}
-  affinity: {}
-  nodeSelector: {}
-  tolerations: []
+  podAnnotations: { }
+  affinity: { }
+  nodeSelector: { }
+  tolerations: [ ]
   resources:
     limits:
       cpu: 200m
@@ -100,10 +101,10 @@ authserver:
   ## pod配置
   ##
   replicas: 1
-  podAnnotations: {}
-  affinity: {}
-  nodeSelector: {}
-  tolerations: []
+  podAnnotations: { }
+  affinity: { }
+  nodeSelector: { }
+  tolerations: [ ]
   resources:
     limits:
       cpu: 200m
@@ -153,13 +154,19 @@ cloudserver:
   recycle:
     ## autoDeleteTimeHour auto delete recycle bin resource time, unit: hour.
     autoDeleteTimeHour: 48
+  # billConfig bill config settings.
+  billConfig:
+    # enable if enable bill config.
+    enable: true
+    # syncIntervalMin bill config interval, unit: min.
+    syncIntervalMin: 30
   ## pod配置
   ##
   replicas: 1
-  podAnnotations: {}
-  affinity: {}
-  nodeSelector: {}
-  tolerations: []
+  podAnnotations: { }
+  affinity: { }
+  nodeSelector: { }
+  tolerations: [ ]
   resources:
     limits:
       cpu: 200m
@@ -197,10 +204,10 @@ dataservice:
   ## pod配置
   ##
   replicas: 1
-  podAnnotations: {}
-  affinity: {}
-  nodeSelector: {}
-  tolerations: []
+  podAnnotations: { }
+  affinity: { }
+  nodeSelector: { }
+  tolerations: [ ]
   resources:
     limits:
       cpu: 200m
@@ -238,10 +245,10 @@ hcservice:
   ## pod配置
   ##
   replicas: 1
-  podAnnotations: {}
-  affinity: {}
-  nodeSelector: {}
-  tolerations: []
+  podAnnotations: { }
+  affinity: { }
+  nodeSelector: { }
+  tolerations: [ ]
   resources:
     limits:
       cpu: 200m
@@ -279,10 +286,10 @@ webserver:
   ## pod配置
   ##
   replicas: 1
-  podAnnotations: {}
-  affinity: {}
-  nodeSelector: {}
-  tolerations: []
+  podAnnotations: { }
+  affinity: { }
+  nodeSelector: { }
+  tolerations: [ ]
   resources:
     limits:
       cpu: 200m
@@ -415,7 +422,7 @@ etcd:
     registry: docker.io
     repository: bitnami/etcd
     tag: 3.5.4-debian-11-r36
-    
+
   enabled: true
   ## 使用username/password方式，不使用TLS
   ##
@@ -494,3 +501,31 @@ serviceMonitor:
     - action: replace
       replacement: hcm.blueking.com
       targetLabel: bk_domain
+
+# defines itsm related settings.
+itsm:
+  # endpoints is a seed list of host:port addresses of itsm api gateway nodes.
+  endpoints:
+    - http://demo.com
+  # appCode is the BlueKing app code of hcm to request itsm api gateway.
+  appCode: test
+  # appSecret is the BlueKing app secret of hcm to request itsm api gateway.
+  appSecret: xxxxxxxxx
+  # user is the BlueKing user of hcm to request itsm api gateway.
+  user: test
+  # bkTicket is the BlueKing access ticket of hcm to request itsm api gateway.
+  bkTicket:
+  # bkToken is the BlueKing access token of hcm to request itsm api gateway.
+  bkToken: xxxxxxxxx
+  # defines tls related options.
+  tls:
+    # server should be accessed without verifying the TLS certificate.
+    insecureSkipVerify:
+    # server requires TLS client certificate authentication.
+    certFile:
+    # server requires TLS client certificate authentication.
+    keyFile:
+    # trusted root certificates for server.
+    caFile:
+    # the password to decrypt the certificate.
+    password:

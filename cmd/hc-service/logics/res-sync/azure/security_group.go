@@ -23,7 +23,6 @@ import (
 	"fmt"
 
 	"hcm/cmd/hc-service/logics/res-sync/common"
-	securitygroupsync "hcm/cmd/hc-service/logics/sync/security-group"
 	typescore "hcm/pkg/adaptor/types/core"
 	securitygroup "hcm/pkg/adaptor/types/security-group"
 	"hcm/pkg/api/core"
@@ -72,6 +71,12 @@ func (cli *client) SecurityGroup(kt *kit.Kit, params *SyncBaseParams, opt *SyncS
 	addSlice, updateMap, delCloudIDs := common.Diff[securitygroup.AzureSecurityGroup, cloudcore.SecurityGroup[cloudcore.AzureSecurityGroupExtension]](
 		sgFromCloud, sgFromDB, isSGChange)
 
+	if len(delCloudIDs) > 0 {
+		if err := cli.deleteSG(kt, params.AccountID, params.ResourceGroupName, delCloudIDs); err != nil {
+			return nil, err
+		}
+	}
+
 	if len(addSlice) > 0 {
 		_, err := cli.createSG(kt, params.AccountID, params.ResourceGroupName, addSlice)
 		if err != nil {
@@ -85,29 +90,27 @@ func (cli *client) SecurityGroup(kt *kit.Kit, params *SyncBaseParams, opt *SyncS
 		}
 	}
 
-	if len(delCloudIDs) > 0 {
-		if err := cli.deleteSG(kt, params.AccountID, params.ResourceGroupName, delCloudIDs); err != nil {
-			return nil, err
-		}
-	}
-
 	// 同步安全组规则
 	sgFromDB, err = cli.listSGFromDB(kt, params)
 	if err != nil {
 		return nil, err
 	}
-	req := &securitygroupsync.SyncAzureSecurityGroupOption{
+
+	cloudSGIDs := make([]string, 0, len(sgFromDB))
+	for _, one := range sgFromDB {
+		cloudSGIDs = append(cloudSGIDs, one.CloudID)
+	}
+
+	sgRuleParams := &SyncBaseParams{
 		AccountID:         params.AccountID,
 		ResourceGroupName: params.ResourceGroupName,
+		CloudIDs:          cloudSGIDs,
 	}
-	for _, one := range sgFromDB {
-		// TODO: sync-todo 安全组规则同步待优化为版本3
-		_, err := securitygroupsync.SyncAzureSGRule(kt, req, cli.cloudCli, cli.dbCli, one.ID)
-		if err != nil {
-			logs.Errorf("[%s] sync security group rule failed, err: %v, rid: %s", enumor.Azure,
-				err, kt.Rid)
-			return nil, err
-		}
+	_, err = cli.SecurityGroupRule(kt, sgRuleParams, &SyncSGRuleOption{})
+	if err != nil {
+		logs.Errorf("[%s] sg sync sgRule failed. err: %v, accountID: %s, resGroupName: %s, rid: %s",
+			err, enumor.Azure, params.AccountID, params.ResourceGroupName, kt.Rid)
+		return nil, err
 	}
 
 	return new(SyncResult), nil
@@ -283,7 +286,7 @@ func (cli *client) listSGFromDB(kt *kit.Kit, params *SyncBaseParams) (
 				},
 			},
 		},
-		Page: core.DefaultBasePage,
+		Page: core.NewDefaultBasePage(),
 	}
 	result, err := cli.dbCli.Azure.SecurityGroup.ListSecurityGroupExt(kt.Ctx, kt.Header(), req)
 	if err != nil {

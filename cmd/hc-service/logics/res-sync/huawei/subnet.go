@@ -23,7 +23,7 @@ import (
 	"fmt"
 
 	"hcm/cmd/hc-service/logics/res-sync/common"
-	"hcm/pkg/adaptor/types"
+	"hcm/pkg/adaptor/types/subnet"
 	"hcm/pkg/api/core"
 	cloudcore "hcm/pkg/api/core/cloud"
 	dataservice "hcm/pkg/api/data-service"
@@ -70,8 +70,14 @@ func (cli *client) Subnet(kt *kit.Kit, params *SyncBaseParams, opt *SyncSubnetOp
 		return new(SyncResult), nil
 	}
 
-	addSubnet, updateMap, delCloudIDs := common.Diff[types.HuaWeiSubnet,
+	addSubnet, updateMap, delCloudIDs := common.Diff[adtysubnet.HuaWeiSubnet,
 		cloudcore.Subnet[cloudcore.HuaWeiSubnetExtension]](subnetFromCloud, subnetFromDB, isHuaWeiSubnetChange)
+
+	if len(delCloudIDs) > 0 {
+		if err = cli.deleteSubnet(kt, params.AccountID, params.Region, opt.CloudVpcID, delCloudIDs); err != nil {
+			return nil, err
+		}
+	}
 
 	if len(addSubnet) > 0 {
 		if err = cli.createSubnet(kt, params.AccountID, params.Region, opt.CloudVpcID, addSubnet); err != nil {
@@ -81,12 +87,6 @@ func (cli *client) Subnet(kt *kit.Kit, params *SyncBaseParams, opt *SyncSubnetOp
 
 	if len(updateMap) > 0 {
 		if err = cli.updateSubnet(kt, params.AccountID, updateMap); err != nil {
-			return nil, err
-		}
-	}
-
-	if len(delCloudIDs) > 0 {
-		if err = cli.deleteSubnet(kt, params.AccountID, params.Region, opt.CloudVpcID, delCloudIDs); err != nil {
 			return nil, err
 		}
 	}
@@ -129,7 +129,7 @@ func (cli *client) RemoveSubnetDeleteFromCloud(kt *kit.Kit, accountID, region, c
 			break
 		}
 
-		var resultFromCloud []types.HuaWeiSubnet
+		var resultFromCloud []adtysubnet.HuaWeiSubnet
 		if len(cloudIDs) != 0 {
 			params := &SyncBaseParams{
 				AccountID: accountID,
@@ -200,7 +200,7 @@ func (cli *client) deleteSubnet(kt *kit.Kit, accountID, region, cloudVpcID strin
 	return nil
 }
 
-func (cli *client) updateSubnet(kt *kit.Kit, accountID string, updateMap map[string]types.HuaWeiSubnet) error {
+func (cli *client) updateSubnet(kt *kit.Kit, accountID string, updateMap map[string]adtysubnet.HuaWeiSubnet) error {
 	if len(updateMap) == 0 {
 		return fmt.Errorf("update subnet, subnets is required")
 	}
@@ -243,7 +243,7 @@ func (cli *client) updateSubnet(kt *kit.Kit, accountID string, updateMap map[str
 	return nil
 }
 
-func (cli *client) createSubnet(kt *kit.Kit, accountID, region, cloudVpcID string, addSubnet []types.HuaWeiSubnet) error {
+func (cli *client) createSubnet(kt *kit.Kit, accountID, region, cloudVpcID string, addSubnet []adtysubnet.HuaWeiSubnet) error {
 	if len(addSubnet) == 0 {
 		return fmt.Errorf("create subnet, subnets is required")
 	}
@@ -303,13 +303,13 @@ func (cli *client) createSubnet(kt *kit.Kit, accountID, region, cloudVpcID strin
 }
 
 func (cli *client) listSubnetFromCloud(kt *kit.Kit, params *SyncBaseParams, cloudVpcID string) (
-	[]types.HuaWeiSubnet, error) {
+	[]adtysubnet.HuaWeiSubnet, error) {
 
 	if err := params.Validate(); err != nil {
 		return nil, errf.NewFromErr(errf.InvalidParameter, err)
 	}
 
-	opt := &types.HuaWeiSubnetListByIDOption{
+	opt := &adtysubnet.HuaWeiSubnetListByIDOption{
 		Region:     params.Region,
 		CloudIDs:   params.CloudIDs,
 		CloudVpcID: cloudVpcID,
@@ -341,7 +341,7 @@ func (cli *client) listSubnetFromDB(kt *kit.Kit, params *SyncBaseParams, cloudVp
 				&filter.AtomRule{Field: "cloud_vpc_id", Op: filter.Equal.Factory(), Value: cloudVpcID},
 			},
 		},
-		Page: core.DefaultBasePage,
+		Page: core.NewDefaultBasePage(),
 	}
 	result, err := cli.dbCli.HuaWei.Subnet.ListSubnetExt(kt.Ctx, kt.Header(), req)
 	if err != nil {
@@ -353,7 +353,7 @@ func (cli *client) listSubnetFromDB(kt *kit.Kit, params *SyncBaseParams, cloudVp
 	return result.Details, nil
 }
 
-func isHuaWeiSubnetChange(item types.HuaWeiSubnet, info cloudcore.Subnet[cloudcore.HuaWeiSubnetExtension]) bool {
+func isHuaWeiSubnetChange(item adtysubnet.HuaWeiSubnet, info cloudcore.Subnet[cloudcore.HuaWeiSubnetExtension]) bool {
 	if info.Region != item.Extension.Region {
 		return true
 	}

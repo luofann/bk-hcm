@@ -50,7 +50,7 @@ func (h *HuaWei) CreateDisk(kt *kit.Kit, opt *disk.HuaWeiDiskCreateOption) (*pol
 		return nil, fmt.Errorf("create disk return volume_ids is empty, orderID: %v", converter.ValToPtr(resp.OrderId))
 	}
 
-	respPoller := poller.Poller[*HuaWei, []model.VolumeDetail, poller.BaseDoneResult]{
+	respPoller := poller.Poller[*HuaWei, []disk.HuaWeiDisk, poller.BaseDoneResult]{
 		Handler: &createDiskPollingHandler{region: opt.Region},
 	}
 	return respPoller.PollUntilDone(h, kt, common.StringPtrs(*resp.VolumeIds), nil)
@@ -70,10 +70,9 @@ func (h *HuaWei) createDisk(opt *disk.HuaWeiDiskCreateOption) (*model.CreateVolu
 	return client.CreateVolume(req)
 }
 
-// TODO: sync-todo 改好后统一删除ListDisk函数
 // ListDisk 查看云硬盘
 // reference: https://support.huaweicloud.com/api-evs/evs_04_2006.html
-func (h *HuaWei) ListDiskNew(kt *kit.Kit, opt *disk.HuaWeiDiskListOption) ([]disk.HuaWeiDisk, error) {
+func (h *HuaWei) ListDisk(kt *kit.Kit, opt *disk.HuaWeiDiskListOption) ([]disk.HuaWeiDisk, error) {
 	if opt == nil {
 		return nil, errf.New(errf.InvalidParameter, "huawei disk list option is required")
 	}
@@ -88,10 +87,12 @@ func (h *HuaWei) ListDiskNew(kt *kit.Kit, opt *disk.HuaWeiDiskListOption) ([]dis
 	}
 
 	req := new(model.ListVolumesRequest)
+
 	if opt.Page != nil {
 		req.Marker = opt.Page.Marker
 		req.Limit = opt.Page.Limit
 	}
+
 	if len(opt.CloudIDs) > 0 {
 		req.Ids = converter.StringSliceToSliceStringPtr(opt.CloudIDs)
 	}
@@ -113,43 +114,6 @@ func (h *HuaWei) ListDiskNew(kt *kit.Kit, opt *disk.HuaWeiDiskListOption) ([]dis
 	return disks, nil
 }
 
-// ListDisk 查看云硬盘
-// reference: https://support.huaweicloud.com/api-evs/evs_04_2006.html
-func (h *HuaWei) ListDisk(kt *kit.Kit, opt *disk.HuaWeiDiskListOption) ([]model.VolumeDetail, error) {
-	if opt == nil {
-		return nil, errf.New(errf.InvalidParameter, "huawei disk list option is required")
-	}
-
-	if err := opt.Validate(); err != nil {
-		return nil, errf.NewFromErr(errf.InvalidParameter, err)
-	}
-
-	client, err := h.clientSet.evsClient(opt.Region)
-	if err != nil {
-		return nil, err
-	}
-
-	req := new(model.ListVolumesRequest)
-	if opt.Page != nil {
-		req.Marker = opt.Page.Marker
-		req.Limit = opt.Page.Limit
-	}
-	if len(opt.CloudIDs) > 0 {
-		req.Ids = converter.StringSliceToSliceStringPtr(opt.CloudIDs)
-	}
-
-	resp, err := client.ListVolumes(req)
-	if err != nil {
-		if strings.Contains(err.Error(), ErrDataNotFound) {
-			return make([]model.VolumeDetail, 0), nil
-		}
-		logs.Errorf("list huawei disk failed, err: %v, rid: %s", err, kt.Rid)
-		return nil, err
-	}
-
-	return *resp.Volumes, nil
-}
-
 // DeleteDisk 删除云盘
 // reference: https://support.huaweicloud.com/api-evs/evs_04_2008.html
 func (h *HuaWei) DeleteDisk(kt *kit.Kit, opt *disk.HuaWeiDiskDeleteOption) error {
@@ -167,14 +131,9 @@ func (h *HuaWei) DeleteDisk(kt *kit.Kit, opt *disk.HuaWeiDiskDeleteOption) error
 		return err
 	}
 
-	resp, err := client.DeleteVolume(req)
+	_, err = client.DeleteVolume(req)
 	if err != nil {
-		logs.Errorf(
-			"huawei delete disk failed, err: %v, rid: %s, job id: %s",
-			err,
-			kt.Rid,
-			resp.JobId,
-		)
+		logs.Errorf("huawei delete disk failed, err: %v, rid: %s", err, kt.Rid)
 		return err
 	}
 
@@ -204,7 +163,7 @@ func (h *HuaWei) AttachDisk(kt *kit.Kit, opt *disk.HuaWeiDiskAttachOption) error
 		return err
 	}
 
-	respPoller := poller.Poller[*HuaWei, []model.VolumeDetail, poller.BaseDoneResult]{
+	respPoller := poller.Poller[*HuaWei, []disk.HuaWeiDisk, poller.BaseDoneResult]{
 		Handler: &attachDiskPollingHandler{region: opt.Region},
 	}
 	_, err = respPoller.PollUntilDone(h, kt, []*string{&opt.CloudDiskID}, nil)
@@ -234,7 +193,7 @@ func (h *HuaWei) DetachDisk(kt *kit.Kit, opt *disk.HuaWeiDiskDetachOption) error
 		return err
 	}
 
-	respPoller := poller.Poller[*HuaWei, []model.VolumeDetail, poller.BaseDoneResult]{
+	respPoller := poller.Poller[*HuaWei, []disk.HuaWeiDisk, poller.BaseDoneResult]{
 		Handler: &detachDiskPollingHandler{region: opt.Region},
 	}
 	_, err = respPoller.PollUntilDone(h, kt, []*string{&opt.CloudDiskID}, nil)
@@ -245,7 +204,7 @@ type createDiskPollingHandler struct {
 	region string
 }
 
-func (h *createDiskPollingHandler) Done(pollResult []model.VolumeDetail) (bool, *poller.BaseDoneResult) {
+func (h *createDiskPollingHandler) Done(pollResult []disk.HuaWeiDisk) (bool, *poller.BaseDoneResult) {
 	successCloudIDs := make([]string, 0)
 	unknownCloudIDs := make([]string, 0)
 
@@ -258,7 +217,7 @@ func (h *createDiskPollingHandler) Done(pollResult []model.VolumeDetail) (bool, 
 	}
 
 	isDone := false
-	if len(unknownCloudIDs) == 0 {
+	if len(successCloudIDs) != 0 && len(successCloudIDs) == len(pollResult) {
 		isDone = true
 	}
 
@@ -272,7 +231,7 @@ func (h *createDiskPollingHandler) Poll(
 	client *HuaWei,
 	kt *kit.Kit,
 	cloudIDs []*string,
-) ([]model.VolumeDetail, error) {
+) ([]disk.HuaWeiDisk, error) {
 	cIDs := converter.PtrToSlice(cloudIDs)
 	result, err := client.ListDisk(kt, &disk.HuaWeiDiskListOption{Region: h.region, CloudIDs: cIDs})
 	if err != nil {
@@ -286,13 +245,13 @@ func (h *createDiskPollingHandler) Poll(
 	return result, nil
 }
 
-var _ poller.PollingHandler[*HuaWei, []model.VolumeDetail, poller.BaseDoneResult] = new(createDiskPollingHandler)
+var _ poller.PollingHandler[*HuaWei, []disk.HuaWeiDisk, poller.BaseDoneResult] = new(createDiskPollingHandler)
 
 type attachDiskPollingHandler struct {
 	region string
 }
 
-func (h *attachDiskPollingHandler) Done(pollResult []model.VolumeDetail) (bool, *poller.BaseDoneResult) {
+func (h *attachDiskPollingHandler) Done(pollResult []disk.HuaWeiDisk) (bool, *poller.BaseDoneResult) {
 	r := pollResult[0]
 	if r.Status != "in-use" {
 		return false, nil
@@ -304,7 +263,7 @@ func (h *attachDiskPollingHandler) Poll(
 	client *HuaWei,
 	kt *kit.Kit,
 	cloudIDs []*string,
-) ([]model.VolumeDetail, error) {
+) ([]disk.HuaWeiDisk, error) {
 	if len(cloudIDs) != 1 {
 		return nil, fmt.Errorf("poll only support one id param, but get %v. rid: %s", cloudIDs, kt.Rid)
 	}
@@ -322,7 +281,7 @@ type detachDiskPollingHandler struct {
 	region string
 }
 
-func (h *detachDiskPollingHandler) Done(pollResult []model.VolumeDetail) (bool, *poller.BaseDoneResult) {
+func (h *detachDiskPollingHandler) Done(pollResult []disk.HuaWeiDisk) (bool, *poller.BaseDoneResult) {
 	r := pollResult[0]
 	if r.Status != "available" {
 		return false, nil
@@ -334,7 +293,7 @@ func (h *detachDiskPollingHandler) Poll(
 	client *HuaWei,
 	kt *kit.Kit,
 	cloudIDs []*string,
-) ([]model.VolumeDetail, error) {
+) ([]disk.HuaWeiDisk, error) {
 	if len(cloudIDs) != 1 {
 		return nil, fmt.Errorf("poll only support one id param, but get %v. rid: %s", cloudIDs, kt.Rid)
 	}

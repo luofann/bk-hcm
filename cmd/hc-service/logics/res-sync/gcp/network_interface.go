@@ -118,6 +118,12 @@ func (cli *client) syncNetworkInterface(kt *kit.Kit, opt *syncNIOption) (*SyncRe
 	addSlice, updateMap, delCloudIDs := common.Diff[typesni.GcpNI, coreni.
 		NetworkInterface[coreni.GcpNIExtension]](networkInterfaceFromCloud, networkInterfaceFromDB, isNIChange)
 
+	if len(delCloudIDs) > 0 {
+		if err = cli.deleteNetworkInterface(kt, delCloudIDs, opt); err != nil {
+			return nil, err
+		}
+	}
+
 	if len(addSlice) > 0 {
 		if err = cli.createNetworkInterface(kt, opt.AccountID, cvm, addSlice); err != nil {
 			return nil, err
@@ -126,12 +132,6 @@ func (cli *client) syncNetworkInterface(kt *kit.Kit, opt *syncNIOption) (*SyncRe
 
 	if len(updateMap) > 0 {
 		if err = cli.updateNetworkInterface(kt, opt.AccountID, updateMap); err != nil {
-			return nil, err
-		}
-	}
-
-	if len(delCloudIDs) > 0 {
-		if err = cli.deleteNetworkInterface(kt, delCloudIDs, opt); err != nil {
 			return nil, err
 		}
 	}
@@ -318,7 +318,7 @@ func (cli *client) getSubnetMapByCloudID(kt *kit.Kit, cloudIDs []string) (map[st
 	for _, part := range split {
 		req := &core.ListReq{
 			Filter: tools.ContainersExpression("cloud_id", part),
-			Page:   core.DefaultBasePage,
+			Page:   core.NewDefaultBasePage(),
 		}
 		result, err := cli.dbCli.Global.Subnet.List(kt.Ctx, kt.Header(), req)
 		if err != nil {
@@ -459,7 +459,7 @@ func (cli *client) listNetworkInterfaceFromDB(kt *kit.Kit, opt *syncNIOption) (
 				&filter.AtomRule{Field: "zone", Op: filter.Equal.Factory(), Value: opt.Zone},
 			},
 		},
-		Page: core.DefaultBasePage,
+		Page: core.NewDefaultBasePage(),
 	}
 	cvmResult, err := cli.dbCli.Global.Cvm.ListCvm(kt.Ctx, kt.Header(), listCvmReq)
 	if err != nil {
@@ -478,7 +478,7 @@ func (cli *client) listNetworkInterfaceFromDB(kt *kit.Kit, opt *syncNIOption) (
 				&filter.AtomRule{Field: "cvm_id", Op: filter.Equal.Factory(), Value: cvmResult.Details[0].ID},
 			},
 		},
-		Page: core.DefaultBasePage,
+		Page: core.NewDefaultBasePage(),
 	}
 	relResult, err := cli.dbCli.Global.NetworkInterfaceCvmRel.List(kt.Ctx, kt.Header(), listRelReq)
 	if err != nil {
@@ -505,7 +505,7 @@ func (cli *client) listNetworkInterfaceFromDB(kt *kit.Kit, opt *syncNIOption) (
 				&filter.AtomRule{Field: "zone", Op: filter.Equal.Factory(), Value: opt.Zone},
 			},
 		},
-		Page: core.DefaultBasePage,
+		Page: core.NewDefaultBasePage(),
 	}
 	result, err := cli.dbCli.Gcp.NetworkInterface.ListNetworkInterfaceExt(kt.Ctx, kt.Header(), req)
 	if err != nil {

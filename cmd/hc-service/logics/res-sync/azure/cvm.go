@@ -75,6 +75,12 @@ func (cli *client) Cvm(kt *kit.Kit, params *SyncBaseParams, opt *SyncCvmOption) 
 	addSlice, updateMap, delCloudIDs := common.Diff[typescvm.AzureCvm, corecvm.Cvm[cvm.AzureCvmExtension]](
 		cvmFromCloud, cvmFromDB, isCvmChange)
 
+	if len(delCloudIDs) > 0 {
+		if err := cli.deleteCvm(kt, params.AccountID, params.ResourceGroupName, delCloudIDs); err != nil {
+			return nil, err
+		}
+	}
+
 	if len(addSlice) > 0 {
 		if err = cli.createCvm(kt, params.AccountID, params.ResourceGroupName, addSlice); err != nil {
 			return nil, err
@@ -83,12 +89,6 @@ func (cli *client) Cvm(kt *kit.Kit, params *SyncBaseParams, opt *SyncCvmOption) 
 
 	if len(updateMap) > 0 {
 		if err = cli.updateCvm(kt, params.AccountID, params.ResourceGroupName, updateMap); err != nil {
-			return nil, err
-		}
-	}
-
-	if len(delCloudIDs) > 0 {
-		if err := cli.deleteCvm(kt, params.AccountID, params.ResourceGroupName, delCloudIDs); err != nil {
 			return nil, err
 		}
 	}
@@ -148,7 +148,7 @@ func (cli *client) listCvmFromDB(kt *kit.Kit, params *SyncBaseParams) (
 				},
 			},
 		},
-		Page: core.DefaultBasePage,
+		Page: core.NewDefaultBasePage(),
 	}
 	result, err := cli.dbCli.Azure.Cvm.ListCvmExt(kt.Ctx, kt.Header(), req)
 	if err != nil {
@@ -482,11 +482,11 @@ func (cli *client) getNIAssResMapFromNI(kt *kit.Kit, niIDs []string, resGroupNam
 			cloudMap[cvmID].PrivateIPv4Addresses = make([]string, 0)
 			cloudMap[cvmID].PrivateIPv4Addresses = append(cloudMap[cvmID].PrivateIPv4Addresses, niData.PrivateIPv4...)
 			cloudMap[cvmID].PrivateIPv6Addresses = make([]string, 0)
-			cloudMap[cvmID].PrivateIPv6Addresses = append(cloudMap[cvmID].PrivateIPv4Addresses, niData.PrivateIPv6...)
+			cloudMap[cvmID].PrivateIPv6Addresses = append(cloudMap[cvmID].PrivateIPv6Addresses, niData.PrivateIPv6...)
 			cloudMap[cvmID].PublicIPv4Addresses = make([]string, 0)
 			cloudMap[cvmID].PublicIPv4Addresses = append(cloudMap[cvmID].PublicIPv4Addresses, niData.PublicIPv4...)
 			cloudMap[cvmID].PublicIPv6Addresses = make([]string, 0)
-			cloudMap[cvmID].PublicIPv6Addresses = append(cloudMap[cvmID].PublicIPv4Addresses, niData.PublicIPv4...)
+			cloudMap[cvmID].PublicIPv6Addresses = append(cloudMap[cvmID].PublicIPv6Addresses, niData.PublicIPv6...)
 		}
 	}
 

@@ -24,7 +24,6 @@ import (
 
 	"hcm/pkg/api/core"
 	protocloud "hcm/pkg/api/data-service/cloud"
-	"hcm/pkg/criteria/constant"
 	"hcm/pkg/criteria/errf"
 	"hcm/pkg/dal/dao/orm"
 	"hcm/pkg/dal/dao/tools"
@@ -52,7 +51,7 @@ func (svc *cvmSvc) BatchDeleteCvm(cts *rest.Contexts) (interface{}, error) {
 	opt := &types.ListOption{
 		Fields: []string{"id", "vendor", "cloud_id", "bk_biz_id"},
 		Filter: req.Filter,
-		Page:   core.DefaultBasePage,
+		Page:   core.NewDefaultBasePage(),
 	}
 	listResp, err := svc.dao.Cvm().List(cts.Kit, opt)
 	if err != nil {
@@ -89,7 +88,7 @@ func (svc *cvmSvc) BatchDeleteCvm(cts *rest.Contexts) (interface{}, error) {
 
 		// delete cmdb cloud hosts
 		if err = deleteCmdbHosts(svc, cts.Kit, listResp.Details); err != nil {
-			logs.Errorf("[%s] delete cmdb hosts failed, err: %v, rid: %s", constant.CmdbSyncFailed, err, cts.Kit.Rid)
+			logs.Errorf("delete cmdb hosts failed, err: %v, rid: %s", err, cts.Kit.Rid)
 			return nil, nil
 		}
 
@@ -110,7 +109,7 @@ func (svc *cvmSvc) listCvmAssNetworkInterface(kt *kit.Kit, cvmIDs []string) ([]s
 	for _, partID := range split {
 		opt := &types.ListOption{
 			Filter: tools.ContainersExpression("cvm_id", partID),
-			Page:   core.DefaultBasePage,
+			Page:   core.NewDefaultBasePage(),
 		}
 		result, err := svc.dao.NiCvmRel().List(kt, opt)
 		if err != nil {

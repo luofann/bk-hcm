@@ -23,8 +23,8 @@ import (
 	"fmt"
 
 	"hcm/cmd/hc-service/logics/res-sync/common"
-	"hcm/pkg/adaptor/types"
 	adcore "hcm/pkg/adaptor/types/core"
+	"hcm/pkg/adaptor/types/subnet"
 	"hcm/pkg/api/core"
 	cloudcore "hcm/pkg/api/core/cloud"
 	dataservice "hcm/pkg/api/data-service"
@@ -71,8 +71,14 @@ func (cli *client) Subnet(kt *kit.Kit, params *SyncBaseParams, opt *SyncSubnetOp
 		return new(SyncResult), nil
 	}
 
-	addSubnet, updateMap, delCloudIDs := common.Diff[types.GcpSubnet, cloudcore.Subnet[cloudcore.GcpSubnetExtension]](
+	addSubnet, updateMap, delCloudIDs := common.Diff[adtysubnet.GcpSubnet, cloudcore.Subnet[cloudcore.GcpSubnetExtension]](
 		subnetFromCloud, subnetFromDB, isGcpSubnetChange)
+
+	if len(delCloudIDs) > 0 {
+		if err = cli.deleteSubnet(kt, params.AccountID, opt.Region, delCloudIDs); err != nil {
+			return nil, err
+		}
+	}
 
 	if len(addSubnet) > 0 {
 		if err = cli.createSubnet(kt, params.AccountID, addSubnet); err != nil {
@@ -82,12 +88,6 @@ func (cli *client) Subnet(kt *kit.Kit, params *SyncBaseParams, opt *SyncSubnetOp
 
 	if len(updateMap) > 0 {
 		if err = cli.updateSubnet(kt, params.AccountID, updateMap); err != nil {
-			return nil, err
-		}
-	}
-
-	if len(delCloudIDs) > 0 {
-		if err = cli.deleteSubnet(kt, params.AccountID, opt.Region, delCloudIDs); err != nil {
 			return nil, err
 		}
 	}
@@ -129,7 +129,7 @@ func (cli *client) RemoveSubnetDeleteFromCloud(kt *kit.Kit, accountID, region st
 			break
 		}
 
-		var resultFromCloud []types.GcpSubnet
+		var resultFromCloud []adtysubnet.GcpSubnet
 		if len(cloudIDs) != 0 {
 			params := &SyncBaseParams{
 				AccountID: accountID,
@@ -198,7 +198,7 @@ func (cli *client) deleteSubnet(kt *kit.Kit, accountID, region string, delCloudI
 	return nil
 }
 
-func (cli *client) updateSubnet(kt *kit.Kit, accountID string, updateMap map[string]types.GcpSubnet) error {
+func (cli *client) updateSubnet(kt *kit.Kit, accountID string, updateMap map[string]adtysubnet.GcpSubnet) error {
 	if len(updateMap) == 0 {
 		return fmt.Errorf("update subnet, subnets is required")
 	}
@@ -241,7 +241,7 @@ func (cli *client) updateSubnet(kt *kit.Kit, accountID string, updateMap map[str
 	return nil
 }
 
-func (cli *client) createSubnet(kt *kit.Kit, accountID string, addSubnet []types.GcpSubnet) error {
+func (cli *client) createSubnet(kt *kit.Kit, accountID string, addSubnet []adtysubnet.GcpSubnet) error {
 	if len(addSubnet) == 0 {
 		return fmt.Errorf("create subnet, subnets is required")
 	}
@@ -314,12 +314,12 @@ func (cli *client) createSubnet(kt *kit.Kit, accountID string, addSubnet []types
 	return nil
 }
 
-func (cli *client) listSubnetFromCloud(kt *kit.Kit, params *SyncBaseParams, region string) ([]types.GcpSubnet, error) {
+func (cli *client) listSubnetFromCloud(kt *kit.Kit, params *SyncBaseParams, region string) ([]adtysubnet.GcpSubnet, error) {
 	if err := params.Validate(); err != nil {
 		return nil, errf.NewFromErr(errf.InvalidParameter, err)
 	}
 
-	opt := &types.GcpSubnetListOption{
+	opt := &adtysubnet.GcpSubnetListOption{
 		GcpListOption: adcore.GcpListOption{
 			Page: &adcore.GcpPage{
 				PageSize: adcore.GcpQueryLimit,
@@ -354,7 +354,7 @@ func (cli *client) listSubnetFromDBBySelfLink(kt *kit.Kit, params *ListSubnetByS
 				&filter.AtomRule{Field: "extension.self_link", Op: filter.JSONIn.Factory(), Value: params.SelfLink},
 			},
 		},
-		Page: core.DefaultBasePage,
+		Page: core.NewDefaultBasePage(),
 	}
 	result, err := cli.dbCli.Gcp.Subnet.ListSubnetExt(kt.Ctx, kt.Header(), req)
 	if err != nil {
@@ -382,7 +382,7 @@ func (cli *client) listSubnetFromDB(kt *kit.Kit, params *SyncBaseParams, region 
 				&filter.AtomRule{Field: "region", Op: filter.Equal.Factory(), Value: region},
 			},
 		},
-		Page: core.DefaultBasePage,
+		Page: core.NewDefaultBasePage(),
 	}
 	result, err := cli.dbCli.Gcp.Subnet.ListSubnetExt(kt.Ctx, kt.Header(), req)
 	if err != nil {
@@ -393,7 +393,7 @@ func (cli *client) listSubnetFromDB(kt *kit.Kit, params *SyncBaseParams, region 
 
 	return result.Details, nil
 }
-func isGcpSubnetChange(item types.GcpSubnet, info cloudcore.Subnet[cloudcore.GcpSubnetExtension]) bool {
+func isGcpSubnetChange(item adtysubnet.GcpSubnet, info cloudcore.Subnet[cloudcore.GcpSubnetExtension]) bool {
 	if info.Region != item.Extension.Region {
 		return true
 	}

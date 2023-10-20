@@ -75,6 +75,12 @@ func (cli *client) Vpc(kt *kit.Kit, params *SyncBaseParams, opt *SyncVpcOption) 
 	addVpc, updateMap, delCloudIDs := common.Diff[types.AwsVpc, cloudcore.Vpc[cloudcore.AwsVpcExtension]](
 		vpcFromCloud, vpcFromDB, isAwsVpcChange)
 
+	if len(delCloudIDs) > 0 {
+		if err = cli.deleteVpc(kt, params.AccountID, params.Region, delCloudIDs); err != nil {
+			return nil, err
+		}
+	}
+
 	if len(addVpc) > 0 {
 		if err = cli.createVpc(kt, params.AccountID, addVpc); err != nil {
 			return nil, err
@@ -83,12 +89,6 @@ func (cli *client) Vpc(kt *kit.Kit, params *SyncBaseParams, opt *SyncVpcOption) 
 
 	if len(updateMap) > 0 {
 		if err = cli.updateVpc(kt, params.AccountID, updateMap); err != nil {
-			return nil, err
-		}
-	}
-
-	if len(delCloudIDs) > 0 {
-		if err = cli.deleteVpc(kt, params.AccountID, params.Region, delCloudIDs); err != nil {
 			return nil, err
 		}
 	}
@@ -376,6 +376,10 @@ func (cli *client) listRemoveVpcID(kt *kit.Kit, params *SyncBaseParams) ([]strin
 				cloudIDs, delCloudID = removeNotFoundCloudID(cloudIDs, err)
 				delCloudIDs = append(delCloudIDs, delCloudID)
 
+				if len(cloudIDs) <= 0 {
+					break
+				}
+
 				continue
 			}
 
@@ -441,7 +445,7 @@ func (cli *client) listVpcFromDB(kt *kit.Kit, params *SyncBaseParams) (
 				},
 			},
 		},
-		Page: core.DefaultBasePage,
+		Page: core.NewDefaultBasePage(),
 	}
 	result, err := cli.dbCli.Aws.Vpc.ListVpcExt(kt.Ctx, kt.Header(), req)
 	if err != nil {

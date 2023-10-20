@@ -24,13 +24,14 @@ import (
 	"hcm/pkg/criteria/errf"
 	"hcm/pkg/kit"
 	"hcm/pkg/logs"
+	"strings"
 
 	"google.golang.org/api/compute/v1"
 )
 
 // ListZone list zone
 // reference: https://cloud.google.com/compute/docs/reference/rest/v1/zones/list
-func (g *Gcp) ListZone(kit *kit.Kit, opt *typeszone.GcpZoneListOption) ([]*compute.Zone, error) {
+func (g *Gcp) ListZone(kit *kit.Kit, opt *typeszone.GcpZoneListOption) ([]typeszone.GcpZone, error) {
 
 	if opt == nil {
 		return nil, errf.New(errf.InvalidParameter, "gcp zone list option is required")
@@ -41,11 +42,16 @@ func (g *Gcp) ListZone(kit *kit.Kit, opt *typeszone.GcpZoneListOption) ([]*compu
 		return nil, err
 	}
 
-	zones := make([]*compute.Zone, 0)
+	zones := make([]typeszone.GcpZone, 0)
 	req := client.Zones.List(g.CloudProjectID())
 	if err := req.Pages(kit.Ctx, func(page *compute.ZoneList) error {
 		for _, item := range page.Items {
-			zones = append(zones, item)
+			parts := strings.Split(item.Region, "/")
+			// strings.Split 至少返回长度为1的空串slice, 如果非空则替换为截断后的字符串
+			if lastPart := parts[len(parts)-1]; len(lastPart) > 0 {
+				item.Region = lastPart
+			}
+			zones = append(zones, typeszone.GcpZone{item})
 		}
 		return nil
 	}); err != nil {

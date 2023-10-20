@@ -17,6 +17,7 @@
  * to the current version of the project delivered to anyone in the future.
  */
 
+// Package audit ...
 package audit
 
 import (
@@ -130,7 +131,7 @@ func (svc *svc) GetAudit(cts *rest.Contexts) (interface{}, error) {
 
 	opt := &types.ListOption{
 		Filter: tools.EqualExpression("id", id),
-		Page:   core.DefaultBasePage,
+		Page:   core.NewDefaultBasePage(),
 	}
 	result, err := svc.dao.Audit().List(cts.Kit, opt)
 	if err != nil {

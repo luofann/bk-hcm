@@ -74,6 +74,12 @@ func (cli *client) Disk(kt *kit.Kit, params *SyncBaseParams, opt *SyncDiskOption
 	addSlice, updateMap, delCloudIDs := common.Diff[adaptordisk.AwsDisk, *disk.DiskExtResult[disk.AwsDiskExtensionResult]](
 		diskFromCloud, diskFromDB, isDiskChange)
 
+	if len(delCloudIDs) > 0 {
+		if err := cli.deleteDisk(kt, params.AccountID, params.Region, delCloudIDs); err != nil {
+			return nil, err
+		}
+	}
+
 	if len(addSlice) > 0 {
 		if err = cli.createDisk(kt, params.AccountID, params.Region, opt.BootMap, addSlice); err != nil {
 			return nil, err
@@ -86,17 +92,11 @@ func (cli *client) Disk(kt *kit.Kit, params *SyncBaseParams, opt *SyncDiskOption
 		}
 	}
 
-	if len(delCloudIDs) > 0 {
-		if err := cli.deleteDisk(kt, params.AccountID, params.Region, delCloudIDs); err != nil {
-			return nil, err
-		}
-	}
-
 	return new(SyncResult), nil
 }
 
 func (cli *client) updateDisk(kt *kit.Kit, accountID string, bootMap map[string]struct{},
-	updateMap map[string]adaptordisk.AwsDisk) error {
+		updateMap map[string]adaptordisk.AwsDisk) error {
 
 	if len(updateMap) <= 0 {
 		return fmt.Errorf("updateMap is <= 0, not update")
@@ -167,7 +167,7 @@ func (cli *client) updateDisk(kt *kit.Kit, accountID string, bootMap map[string]
 }
 
 func (cli *client) createDisk(kt *kit.Kit, accountID string, region string,
-	bootMap map[string]struct{}, addSlice []adaptordisk.AwsDisk) error {
+		bootMap map[string]struct{}, addSlice []adaptordisk.AwsDisk) error {
 
 	if len(addSlice) <= 0 {
 		return fmt.Errorf("addSlice is <= 0, not create")
@@ -285,9 +285,9 @@ func (cli *client) listDiskFromCloud(kt *kit.Kit, params *SyncBaseParams) ([]ada
 		CloudIDs: params.CloudIDs,
 	}
 
-	result, _, err := cli.cloudCli.ListDiskNew(kt, opt)
+	result, _, err := cli.cloudCli.ListDisk(kt, opt)
 	if err != nil {
-		if strings.Contains(err.Error(), aws.ErrVpcNotFound) {
+		if strings.Contains(err.Error(), aws.ErrDiskNotFound) {
 			return make([]adaptordisk.AwsDisk, 0), nil
 		}
 
@@ -300,7 +300,7 @@ func (cli *client) listDiskFromCloud(kt *kit.Kit, params *SyncBaseParams) ([]ada
 }
 
 func (cli *client) listDiskFromDB(kt *kit.Kit, params *SyncBaseParams) (
-	[]*disk.DiskExtResult[disk.AwsDiskExtensionResult], error) {
+		[]*disk.DiskExtResult[disk.AwsDiskExtensionResult], error) {
 
 	if err := params.Validate(); err != nil {
 		return nil, errf.NewFromErr(errf.InvalidParameter, err)
@@ -327,7 +327,7 @@ func (cli *client) listDiskFromDB(kt *kit.Kit, params *SyncBaseParams) (
 				},
 			},
 		},
-		Page: core.DefaultBasePage,
+		Page: core.NewDefaultBasePage(),
 	}
 	result, err := cli.dbCli.Aws.ListDisk(kt.Ctx, kt.Header(), req)
 	if err != nil {
@@ -409,17 +409,20 @@ func (cli *client) listRemoveDiskID(kt *kit.Kit, params *SyncBaseParams) ([]stri
 	delCloudIDs := make([]string, 0)
 	cloudIDs := params.CloudIDs
 	for {
-
 		opt := &adaptordisk.AwsDiskListOption{
 			Region:   params.Region,
-			CloudIDs: params.CloudIDs,
+			CloudIDs: cloudIDs,
 		}
-		_, _, err := cli.cloudCli.ListDiskNew(kt, opt)
+		_, _, err := cli.cloudCli.ListDisk(kt, opt)
 		if err != nil {
-			if strings.Contains(err.Error(), aws.ErrVpcNotFound) {
+			if strings.Contains(err.Error(), aws.ErrDiskNotFound) {
 				var delCloudID string
 				cloudIDs, delCloudID = removeNotFoundCloudID(cloudIDs, err)
 				delCloudIDs = append(delCloudIDs, delCloudID)
+
+				if len(cloudIDs) <= 0 {
+					break
+				}
 
 				continue
 			}
@@ -449,11 +452,11 @@ func isDiskChange(cloud adaptordisk.AwsDisk, db *disk.DiskExtResult[disk.AwsDisk
 		isEqual := false
 		for _, cloudValue := range cloud.Attachments {
 			if dbValue.AttachTime == cloudValue.AttachTime.String() &&
-				assert.IsPtrBoolEqual(dbValue.DeleteOnTermination, cloudValue.DeleteOnTermination) &&
-				assert.IsPtrStringEqual(dbValue.DeviceName, cloudValue.Device) &&
-				assert.IsPtrStringEqual(dbValue.InstanceId, cloudValue.InstanceId) &&
-				assert.IsPtrStringEqual(dbValue.Status, cloudValue.State) &&
-				assert.IsPtrStringEqual(dbValue.DiskId, cloudValue.VolumeId) {
+					assert.IsPtrBoolEqual(dbValue.DeleteOnTermination, cloudValue.DeleteOnTermination) &&
+					assert.IsPtrStringEqual(dbValue.DeviceName, cloudValue.Device) &&
+					assert.IsPtrStringEqual(dbValue.InstanceId, cloudValue.InstanceId) &&
+					assert.IsPtrStringEqual(dbValue.Status, cloudValue.State) &&
+					assert.IsPtrStringEqual(dbValue.DiskId, cloudValue.VolumeId) {
 				isEqual = true
 				break
 			}

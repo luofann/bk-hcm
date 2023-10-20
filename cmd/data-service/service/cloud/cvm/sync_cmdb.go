@@ -39,7 +39,7 @@ func SyncCvmToCmdb(kt *kit.Kit, accountID string, bkBizID int64) error {
 	listAccountOpt := &types.ListOption{
 		Fields: []string{"vendor"},
 		Filter: tools.EqualExpression("id", accountID),
-		Page:   core.DefaultBasePage,
+		Page:   core.NewDefaultBasePage(),
 	}
 	list, err := svc.dao.Account().List(kt, listAccountOpt)
 	if err != nil {
@@ -56,7 +56,7 @@ func SyncCvmToCmdb(kt *kit.Kit, accountID string, bkBizID int64) error {
 		Filter: tools.EqualExpression("account_id", accountID),
 		Page: &core.BasePage{
 			Start: 0,
-			Limit: core.DefaultMaxPageLimit,
+			Limit: constant.BatchOperationMaxLimit,
 		},
 	}
 	totalCount := 0
@@ -94,7 +94,7 @@ func SyncCvmToCmdb(kt *kit.Kit, accountID string, bkBizID int64) error {
 				converter.SliceToPtr(result.Details))
 		}
 		if err != nil {
-			logs.Errorf("[%s] upsertCmdbHosts failed, err: %v, rid; %s", constant.CmdbSyncFailed, err, kt.Rid)
+			logs.Errorf("upsertCmdbHosts failed, err: %v, rid; %s", err, kt.Rid)
 			return err
 		}
 		totalCount += len(result.Details)

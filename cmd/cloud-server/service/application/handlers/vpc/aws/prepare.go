@@ -20,8 +20,9 @@
 package aws
 
 import (
-	proto "hcm/pkg/api/cloud-server/application"
+	csvpc "hcm/pkg/api/cloud-server/vpc"
 	"hcm/pkg/criteria/enumor"
+	"hcm/pkg/thirdparty/itsm"
 )
 
 // PrepareReq 预处理请求参数，比如敏感数据加密
@@ -34,7 +35,7 @@ func (a *ApplicationOfCreateAwsVpc) PrepareReq() error {
 func (a *ApplicationOfCreateAwsVpc) GenerateApplicationContent() interface{} {
 	// 需要将Vendor也存储进去
 	return &struct {
-		*proto.AwsVpcCreateReq `json:",inline"`
+		*csvpc.AwsVpcCreateReq `json:",inline"`
 		Vendor                 enumor.Vendor `json:"vendor"`
 	}{
 		AwsVpcCreateReq: a.req,
@@ -46,4 +47,9 @@ func (a *ApplicationOfCreateAwsVpc) GenerateApplicationContent() interface{} {
 func (a *ApplicationOfCreateAwsVpc) PrepareReqFromContent() error {
 
 	return nil
+}
+
+// GetItsmApprover 获取itsm审批人
+func (a *ApplicationOfCreateAwsVpc) GetItsmApprover(managers []string) []itsm.VariableApprover {
+	return a.GetItsmPlatformAndAccountApprover(managers, a.req.AccountID)
 }

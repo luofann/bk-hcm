@@ -51,11 +51,18 @@ type Interface interface {
 	NetworkInterface(kt *kit.Kit, params *SyncBaseParams, opt *SyncNIOption) (*SyncResult, error)
 	RemoveNetworkInterfaceDeleteFromCloud(kt *kit.Kit, accountID string, region string) error
 
-	Image(kt *kit.Kit, params *SyncBaseParams, opt *SyncImageOption) (*SyncResult, error)
-	RemoveImageDeleteFromCloud(kt *kit.Kit, accountID string, resGroupName string) error
+	Image(kt *kit.Kit, opt *SyncImageOption) (*SyncResult, error)
 
 	Vpc(kt *kit.Kit, params *SyncBaseParams, opt *SyncVpcOption) (*SyncResult, error)
 	RemoveVpcDeleteFromCloud(kt *kit.Kit, accountID string, resGroupName string) error
+
+	SecurityGroupRule(kt *kit.Kit, params *SyncBaseParams, opt *SyncSGRuleOption) (*SyncResult, error)
+
+	Route(kt *kit.Kit, params *SyncBaseParams, opt *SyncRouteOption) (*SyncResult, error)
+
+	ResourceGroup(kt *kit.Kit, opt *SyncRGOption) (*SyncResult, error)
+
+	Region(kt *kit.Kit, opt *SyncRegionOption) (*SyncResult, error)
 }
 
 var _ Interface = new(client)

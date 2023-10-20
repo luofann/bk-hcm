@@ -17,6 +17,7 @@
  * to the current version of the project delivered to anyone in the future.
  */
 
+// Package disk ...
 package disk
 
 import (
@@ -187,7 +188,7 @@ func (diskDao DiskDao) List(kt *kit.Kit, opt *types.ListOption) (*cloud.DiskList
 	columnTypes["extension.self_link"] = enumor.String
 	columnTypes["extension.zones"] = enumor.Json
 	if err := opt.Validate(filter.NewExprOption(filter.RuleFields(columnTypes)),
-		core.DefaultPageOption); err != nil {
+		core.NewDefaultPageOption()); err != nil {
 		return nil, err
 	}
 

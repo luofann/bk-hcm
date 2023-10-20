@@ -10,6 +10,8 @@ import { ResourceTypeEnum, VendorEnum } from '@/common/constant';
 import useDiskOptions from '../hooks/use-disk-options';
 import useCondtion from '../hooks/use-condtion';
 import useDiskFormData from '../hooks/use-disk-form-data';
+import { useI18n } from 'vue-i18n';
+import { useWhereAmI } from '@/hooks/useWhereAmI';
 
 const { FormItem } = Form;
 const { Option } = Select;
@@ -17,7 +19,7 @@ const { Group: RadioGroup, Button: RadioButton } = Radio;
 
 export default defineComponent({
   props: {},
-  setup(props, ctx) {
+  setup() {
     const { cond, isEmptyCond } = useCondtion(ResourceTypeEnum.DISK);
     const { formData, formRef, handleFormSubmit, submitting } = useDiskFormData(cond);
     const {
@@ -25,6 +27,8 @@ export default defineComponent({
       billingModes,
       purchaseDurationUnits,
     } = useDiskOptions(cond, formData);
+    const { t } = useI18n();
+    const { isResourcePage } = useWhereAmI();
 
     const submitDisabled = computed(() => isEmptyCond.value);
 
@@ -210,8 +214,8 @@ export default defineComponent({
             ))
         }
         <div class="action-bar">
-          <Button theme='primary' loading={submitting.value} disabled={submitDisabled.value} onClick={handleFormSubmit}>提交审批</Button>
-          <Button>取消</Button>
+          <Button theme='primary' loading={submitting.value} disabled={submitDisabled.value} onClick={handleFormSubmit}>{ isResourcePage ? t('提交') : t('提交审批')}</Button>
+          <Button>{ t('取消') }</Button>
         </div>
       </Form>
     </ContentContainer>;

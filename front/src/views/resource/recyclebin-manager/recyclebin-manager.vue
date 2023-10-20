@@ -56,6 +56,7 @@
         @page-limit-change="handlePageSizeChange"
         @selection-change="handleSelectionChange"
         row-hover="auto"
+        row-key="id"
       >
         <bk-table-column
           v-if="isResourcePage"
@@ -90,6 +91,11 @@
           :label="t('地域')"
           prop="region"
         >
+          <template #default="{ data }">
+            {{
+              getRegionName(data?.vendor, data?.region)
+            }}
+          </template>
         </bk-table-column>
         <bk-table-column
           :label="t('资源实例ID')"
@@ -142,7 +148,7 @@
             <span @click="handleAuth('recycle_bin_manage')">
               <bk-button
                 text theme="primary"
-                :disabled="!authVerifyData?.permissionAction?.recycle_bin_manage"
+                :disabled="!authVerifyData?.permissionAction?.recycle_bin_manage || data?.status !== 'wait_recycle'"
                 class="mr10" @click="handleOperate('destroy', [data.id])">
                 {{t('立即销毁')}}
               </bk-button>
@@ -150,7 +156,7 @@
             <span @click="handleAuth('recycle_bin_manage')">
               <bk-button
                 text theme="primary" @click="handleOperate('recover', [data.id])"
-                :disabled="!authVerifyData?.permissionAction?.recycle_bin_manage"
+                :disabled="!authVerifyData?.permissionAction?.recycle_bin_manage || data?.status !== 'wait_recycle'"
               >
                 {{t('立即恢复')}}
               </bk-button>
@@ -195,13 +201,14 @@ import { useI18n } from 'vue-i18n';
 import { Message } from 'bkui-vue';
 import useQueryCommonList from '@/views/resource/resource-manage/hooks/use-query-list-common';
 import { useResourceStore, useAccountStore } from '@/store';
-import { CloudType } from '@/typings';
+import { CloudType, FilterType } from '@/typings';
 import { VENDORS } from '@/common/constant';
 import useSelection from '@/views/resource/resource-manage/hooks/use-selection';
 import HostInfo from '@/views/resource/resource-manage/children/components/host/host-info/index.vue';
 import HostDrive from '@/views/resource/resource-manage/children/components/host/host-drive.vue';
 import { useVerify } from '@/hooks';
 import { RECYCLE_BIN_ITEM_STATUS } from '@/constants/resource';
+import { useRegionsStore } from '@/store/useRegionsStore';
 
 export default defineComponent({
   name: 'RecyclebinManageList',
@@ -216,6 +223,7 @@ export default defineComponent({
     const resourceStore = useResourceStore();
     const accountStore = useAccountStore();
     const fetchUrl = ref<string>('recycle_records/list');
+    const { getRegionName } = useRegionsStore();
 
     const state = reactive({
       isAccurate: false,    // 是否精确
@@ -257,11 +265,12 @@ export default defineComponent({
       handlePageSizeChange,
       handlePageChange,
       getList,
-    } = useQueryCommonList({ filter: state.filter }, fetchUrl);
+    } = useQueryCommonList({ filter: state.filter as FilterType }, fetchUrl);
 
     const {
       selections,
       handleSelectionChange,
+      resetSelections,
     } = useSelection();
 
     // 选择类型
@@ -272,6 +281,7 @@ export default defineComponent({
         value: v,
       }];
       state.selectedType = v;
+      resetSelections();
     };
 
     // 是否精确
@@ -392,7 +402,8 @@ export default defineComponent({
       handleAuth,
       permissionParams,
       authVerifyData,
-      RECYCLE_BIN_ITEM_STATUS
+      RECYCLE_BIN_ITEM_STATUS,
+      getRegionName,
     };
   },
 });

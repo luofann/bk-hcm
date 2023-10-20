@@ -17,6 +17,7 @@
  * to the current version of the project delivered to anyone in the future.
  */
 
+// Package capability ...
 package capability
 
 import (
@@ -26,6 +27,7 @@ import (
 	"hcm/pkg/cryptography"
 	"hcm/pkg/iam/auth"
 	"hcm/pkg/thirdparty/esb"
+	"hcm/pkg/thirdparty/itsm"
 
 	"github.com/emicklei/go-restful/v3"
 )
@@ -39,4 +41,5 @@ type Capability struct {
 	Cipher     cryptography.Crypto
 	EsbClient  esb.Client
 	Logics     *logics.Logics
+	ItsmCli    itsm.Client
 }

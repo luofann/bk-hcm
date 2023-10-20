@@ -21,6 +21,8 @@ package routetable
 
 import (
 	"hcm/pkg/api/core"
+	"hcm/pkg/tools/converter"
+	"hcm/pkg/tools/hash"
 )
 
 // AwsRoute defines aws route info.
@@ -45,4 +47,15 @@ type AwsRoute struct {
 	State                            string  `json:"state"`
 	Propagated                       bool    `json:"propagated"`
 	*core.Revision                   `json:",inline"`
+}
+
+// GetID ...
+func (route AwsRoute) GetID() string {
+	return route.ID
+}
+
+// GetCloudID ...
+func (route AwsRoute) GetCloudID() string {
+	return hash.HashString(route.CloudRouteTableID + converter.PtrToVal(route.DestinationCidrBlock) +
+	converter.PtrToVal(route.DestinationIpv6CidrBlock) + converter.PtrToVal(route.CloudCarrierGatewayID))
 }

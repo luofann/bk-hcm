@@ -137,7 +137,7 @@ func (a *Aws) DisassociateEip(
 		cts.Kit.Header(),
 		&datarelproto.EipCvmRelListReq{
 			Filter: tools.EqualExpression("eip_id", req.EipID),
-			Page:   core.DefaultBasePage,
+			Page:   core.NewDefaultBasePage(),
 		},
 	)
 	if len(rels.Details) == 0 {
@@ -173,7 +173,7 @@ func (a *Aws) DisassociateEip(
 }
 
 // CreateEip ...
-func (a *Aws) CreateEip(cts *rest.Contexts) (interface{}, error) {
+func (a *Aws) CreateEip(cts *rest.Contexts, bkBizID int64) (interface{}, error) {
 	req := new(cloudproto.AwsEipCreateReq)
 	if err := cts.DecodeInto(req); err != nil {
 		return nil, err
@@ -181,18 +181,6 @@ func (a *Aws) CreateEip(cts *rest.Contexts) (interface{}, error) {
 
 	if err := req.Validate(); err != nil {
 		return nil, errf.NewFromErr(errf.InvalidParameter, err)
-	}
-
-	bkBizID, err := cts.PathParameter("bk_biz_id").Int64()
-	if err != nil {
-		return nil, errf.NewFromErr(errf.DecodeRequestFailed, err)
-	}
-
-	// validate biz and authorize
-	authRes := meta.ResourceAttribute{Basic: &meta.Basic{Type: meta.Eip, Action: meta.Create}, BizID: bkBizID}
-	err = a.authorizer.AuthorizeWithPerm(cts.Kit, authRes)
-	if err != nil {
-		return nil, err
 	}
 
 	resp, err := a.client.HCService().Aws.Eip.CreateEip(

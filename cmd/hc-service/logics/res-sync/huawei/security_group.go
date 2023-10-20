@@ -23,7 +23,6 @@ import (
 	"fmt"
 
 	"hcm/cmd/hc-service/logics/res-sync/common"
-	securitygroupsync "hcm/cmd/hc-service/logics/sync/security-group"
 	adcore "hcm/pkg/adaptor/types/core"
 	securitygroup "hcm/pkg/adaptor/types/security-group"
 	"hcm/pkg/api/core"
@@ -37,7 +36,6 @@ import (
 	"hcm/pkg/kit"
 	"hcm/pkg/logs"
 	"hcm/pkg/runtime/filter"
-	"hcm/pkg/tools/concurrence"
 	"hcm/pkg/tools/converter"
 )
 
@@ -73,6 +71,12 @@ func (cli *client) SecurityGroup(kt *kit.Kit, params *SyncBaseParams, opt *SyncS
 	addSlice, updateMap, delCloudIDs := common.Diff[securitygroup.HuaWeiSG,
 		cloudcore.SecurityGroup[cloudcore.HuaWeiSecurityGroupExtension]](sgFromCloud, sgFromDB, isSGChange)
 
+	if len(delCloudIDs) > 0 {
+		if err := cli.deleteSG(kt, params.AccountID, params.Region, delCloudIDs); err != nil {
+			return nil, err
+		}
+	}
+
 	if len(addSlice) > 0 {
 		_, err := cli.createSG(kt, params.AccountID, params.Region, addSlice)
 		if err != nil {
@@ -86,36 +90,28 @@ func (cli *client) SecurityGroup(kt *kit.Kit, params *SyncBaseParams, opt *SyncS
 		}
 	}
 
-	if len(delCloudIDs) > 0 {
-		if err := cli.deleteSG(kt, params.AccountID, params.Region, delCloudIDs); err != nil {
-			return nil, err
-		}
-	}
-
 	// 同步安全组规则
 	sgFromDB, err = cli.listSGFromDB(kt, params)
 	if err != nil {
 		return nil, err
 	}
-	req := &securitygroupsync.SyncHuaWeiSecurityGroupOption{
+
+	cloudSGIDs := make([]string, 0, len(sgFromDB))
+	sgMap := make(map[string]string)
+	for _, one := range sgFromDB {
+		cloudSGIDs = append(cloudSGIDs, one.CloudID)
+		sgMap[one.CloudID] = one.ID
+	}
+
+	sgRuleParams := &SyncBaseParams{
 		AccountID: params.AccountID,
 		Region:    params.Region,
+		CloudIDs:  cloudSGIDs,
 	}
-	sgIDs := make([]string, 0, len(sgFromDB))
-	for _, one := range sgFromDB {
-		sgIDs = append(sgIDs, one.ID)
-	}
-
-	err = concurrence.BaseExec(30, sgIDs, func(param string) error {
-		if _, err := securitygroupsync.SyncHuaWeiSGRule(kt, req, cli.cloudCli, cli.dbCli, param); err != nil {
-			logs.ErrorDepthf(1, "[%s] sync security group rule failed, err: %v, rid: %s", enumor.HuaWei,
-				err, kt.Rid)
-			return err
-		}
-
-		return nil
-	})
+	_, err = cli.SecurityGroupRule(kt, sgRuleParams, &SyncSGRuleOption{})
 	if err != nil {
+		logs.Errorf("[%s] sg sync sgRule failed. err: %v, accountID: %s, region: %s, rid: %s",
+			err, enumor.HuaWei, params.AccountID, params.Region, kt.Rid)
 		return nil, err
 	}
 
@@ -249,7 +245,7 @@ func (cli *client) listSGFromCloud(kt *kit.Kit, params *SyncBaseParams) ([]secur
 			Limit: converter.ValToPtr(int32(adcore.HuaWeiQueryLimit)),
 		},
 	}
-	result, _, err := cli.cloudCli.ListSecurityGroupNew(kt, opt)
+	result, _, err := cli.cloudCli.ListSecurityGroup(kt, opt)
 	if err != nil {
 		logs.Errorf("[%s] list sg from cloud failed, err: %v, account: %s, opt: %v, rid: %s", enumor.HuaWei,
 			err, params.AccountID, opt, kt.Rid)
@@ -287,7 +283,7 @@ func (cli *client) listSGFromDB(kt *kit.Kit, params *SyncBaseParams) (
 				},
 			},
 		},
-		Page: core.DefaultBasePage,
+		Page: core.NewDefaultBasePage(),
 	}
 	result, err := cli.dbCli.HuaWei.SecurityGroup.ListSecurityGroupExt(kt.Ctx, kt.Header(), req)
 	if err != nil {

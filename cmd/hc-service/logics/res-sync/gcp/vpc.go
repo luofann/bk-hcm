@@ -73,6 +73,12 @@ func (cli *client) Vpc(kt *kit.Kit, params *SyncBaseParams, opt *SyncVpcOption) 
 	addVpc, updateMap, delCloudIDs := common.Diff[types.GcpVpc, cloudcore.Vpc[cloudcore.GcpVpcExtension]](
 		vpcFromCloud, vpcFromDB, isGcpVpcChange)
 
+	if len(delCloudIDs) > 0 {
+		if err = cli.deleteVpc(kt, params.AccountID, delCloudIDs); err != nil {
+			return nil, err
+		}
+	}
+
 	if len(addVpc) > 0 {
 		if err = cli.createVpc(kt, params.AccountID, addVpc); err != nil {
 			return nil, err
@@ -81,12 +87,6 @@ func (cli *client) Vpc(kt *kit.Kit, params *SyncBaseParams, opt *SyncVpcOption) 
 
 	if len(updateMap) > 0 {
 		if err = cli.updateVpc(kt, params.AccountID, updateMap); err != nil {
-			return nil, err
-		}
-	}
-
-	if len(delCloudIDs) > 0 {
-		if err = cli.deleteVpc(kt, params.AccountID, delCloudIDs); err != nil {
 			return nil, err
 		}
 	}
@@ -302,6 +302,27 @@ func (cli *client) listVpcFromCloud(kt *kit.Kit, params *SyncBaseParams) ([]type
 	return result.Details, nil
 }
 
+func (cli *client) listVpcFromCloudBySelfLink(kt *kit.Kit, params *ListBySelfLinkOption) ([]types.GcpVpc, error) {
+	if err := params.Validate(); err != nil {
+		return nil, errf.NewFromErr(errf.InvalidParameter, err)
+	}
+
+	opt := &types.GcpListOption{
+		SelfLinks: params.SelfLink,
+		Page: &adcore.GcpPage{
+			PageSize: adcore.GcpQueryLimit,
+		},
+	}
+	result, err := cli.cloudCli.ListVpc(kt, opt)
+	if err != nil {
+		logs.Errorf("[%s] list vpc from cloud by self link failed, err: %v, account: %s, opt: %v, rid: %s",
+			enumor.Gcp, err, params.AccountID, opt, kt.Rid)
+		return nil, err
+	}
+
+	return result.Details, nil
+}
+
 func (cli *client) listVpcFromDB(kt *kit.Kit, params *SyncBaseParams) (
 	[]cloudcore.Vpc[cloudcore.GcpVpcExtension], error) {
 
@@ -325,7 +346,7 @@ func (cli *client) listVpcFromDB(kt *kit.Kit, params *SyncBaseParams) (
 				},
 			},
 		},
-		Page: core.DefaultBasePage,
+		Page: core.NewDefaultBasePage(),
 	}
 	result, err := cli.dbCli.Gcp.Vpc.ListVpcExt(kt.Ctx, kt.Header(), req)
 	if err != nil {
@@ -360,7 +381,7 @@ func (cli *client) listVpcFromDBBySelfLink(kt *kit.Kit, opt *ListBySelfLinkOptio
 				},
 			},
 		},
-		Page: core.DefaultBasePage,
+		Page: core.NewDefaultBasePage(),
 	}
 	result, err := cli.dbCli.Gcp.Vpc.ListVpcExt(kt.Ctx, kt.Header(), req)
 	if err != nil {

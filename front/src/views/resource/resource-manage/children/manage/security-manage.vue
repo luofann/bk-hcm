@@ -33,6 +33,9 @@ import {
 import useQueryCommonList from '@/views/resource/resource-manage/hooks/use-query-list-common';
 import useColumns from '@/views/resource/resource-manage/hooks/use-columns';
 import useFilter from '@/views/resource/resource-manage/hooks/use-filter';
+import { useRegionsStore } from '@/store/useRegionsStore';
+import { VendorEnum } from '@/common/constant';
+import { cloneDeep } from 'lodash-es';
 
 const props = defineProps({
   filter: {
@@ -44,6 +47,9 @@ const props = defineProps({
   authVerifyData: {
     type: Object as PropType<any>,
   },
+  whereAmI: {
+    type: String,
+  },
 });
 
 // use hooks
@@ -51,7 +57,7 @@ const {
   t,
 } = useI18n();
 
-
+const { getRegionName } = useRegionsStore();
 const router = useRouter();
 
 const route = useRoute();
@@ -61,7 +67,7 @@ const fetchUrl = ref<string>('security_groups/list');
 const resourceStore = useResourceStore();
 const accountStore = useAccountStore();
 
-const emit = defineEmits(['auth', 'handleSecrityType']);
+const emit = defineEmits(['auth', 'handleSecrityType', 'edit', 'tabchange']);
 
 const state = reactive<any>({
   datas: [],
@@ -80,6 +86,13 @@ const state = reactive<any>({
   },
 });
 
+
+const {
+  searchData,
+  searchValue,
+  filter,
+} = useFilter(props);
+
 const {
   datas,
   pagination,
@@ -87,7 +100,10 @@ const {
   handlePageChange,
   handlePageSizeChange,
   getList,
-} = useQueryCommonList(props, fetchUrl);
+} = useQueryCommonList({
+  ...props,
+  filter: filter.value,
+}, fetchUrl);
 
 const selectSearchData = computed(() => {
   return [
@@ -99,10 +115,6 @@ const selectSearchData = computed(() => {
   ];
 });
 
-const {
-  searchData,
-  searchValue,
-} = useFilter(props);
 
 // eslint-disable-next-line max-len
 state.datas = datas;
@@ -238,6 +250,9 @@ const groupColumns = [
   {
     label: t('地域'),
     field: 'region',
+    render: ({ data }: { data: { vendor: VendorEnum; region: string; } }) => {
+      return getRegionName(data.vendor, data.region);
+    },
   },
   {
     label: t('描述'),
@@ -500,17 +515,9 @@ const gcpColumns = [
                   text: true,
                   theme: 'primary',
                   disabled: !props.authVerifyData?.permissionAction[props.isResourcePage ? 'iaas_resource_operate' : 'biz_iaas_resource_operate']
-                  || data.bk_biz_id !== -1,
+                  || (data.bk_biz_id !== -1 && props.isResourcePage),
                   onClick() {
-                    router.push({
-                      name: 'resourceDetail',
-                      params: {
-                        type: 'gcp',
-                      },
-                      query: {
-                        id: data.id,
-                      },
-                    });
+                    emit('edit', cloneDeep(data));
                   },
                 },
                 [
@@ -523,7 +530,7 @@ const gcpColumns = [
             'span',
             {
               onClick() {
-                emit('auth', props.isResourcePage ? 'iaas_resource_delete' : 'biz_iaas_resource_delete');
+                emit('auth', props.isResourcePage ? 'iaas_resource_operate' : 'biz_iaas_resource_operate');
               },
             },
             [
@@ -532,7 +539,7 @@ const gcpColumns = [
                 {
                   class: 'ml10',
                   text: true,
-                  disabled: !props.authVerifyData?.value?.permissionAction[props.isResourcePage ? 'iaas_resource_delete' : 'biz_iaas_resource_delete']
+                  disabled: !props.authVerifyData?.permissionAction[props.isResourcePage ? 'iaas_resource_delete' : 'biz_iaas_resource_delete']
                   || (data.bk_biz_id !== -1 && props.isResourcePage),
                   theme: 'primary',
                   onClick() {
@@ -555,6 +562,17 @@ const types = [
   { name: 'gcp', label: t('GCP防火墙规则') },
 ];
 
+const securityType = ref('group');
+
+watch(
+  () => securityType.value,
+  (val) => {
+    emit('tabchange', val);
+  },
+  {
+    immediate: true,
+  },
+);
 
 const securityHandleShowDelete = (data: any) => {
   InfoBox({
@@ -590,11 +608,9 @@ const securityHandleShowDelete = (data: any) => {
       :loading="state.isLoading"
     >
       <section>
-        <slot>
-        </slot>
-
+        <slot></slot>
         <section
-          class="flex-row align-items-center justify-content-between mt20">
+          class="flex-row align-items-center mt20">
           <bk-radio-group
             v-model="activeType"
             :disabled="state.isLoading"
@@ -603,12 +619,13 @@ const securityHandleShowDelete = (data: any) => {
               v-for="item in types"
               :key="item.name"
               :label="item.name"
+              v-model="securityType"
             >
               {{ item.label }}
             </bk-radio-button>
           </bk-radio-group>
           <bk-search-select
-            class="search-filter ml10"
+            class="search-filter search-selector-container"
             clearable
             :conditions="[]"
             :data="selectSearchData"
@@ -660,5 +677,11 @@ const securityHandleShowDelete = (data: any) => {
 }
 .search-filter {
   width: 500px;
+}
+.search-selector-container {
+  margin-left: auto;
+}
+.ml10 {
+  margin-left: 10px;
 }
 </style>

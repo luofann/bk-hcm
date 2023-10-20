@@ -37,6 +37,9 @@ const props = defineProps({
   vendor: {
     type: String as PropType<any>,
   },
+  relatedSecurityGroups: {
+    type: Array as PropType<Array<any>>,
+  },
 });
 
 // use hook
@@ -102,7 +105,6 @@ watch(
     }
   },
 );
-
 
 const getDefaultList = async (type: string) => {
   const list = await resourceStore.getAzureDefaultList(type);
@@ -187,6 +189,7 @@ const handleSubmitRule = async (tableData: any) => {
         delete e[item];
       }
     });
+    e.priority = +e.priority;
   });
   const params = {
     [`${activeType.value}_rule_set`]: data,
@@ -277,6 +280,7 @@ const inColumns = [
   {
     label: t('备注'),
     field: 'memo',
+    render: ({ data }) => data.memo || '--',
   },
   {
     label: t('修改时间'),
@@ -399,6 +403,7 @@ const outColumns = [
   {
     label: t('备注'),
     field: 'memo',
+    render: ({ data }) => data.memo || '--',
   },
   {
     label: t('修改时间'),
@@ -593,11 +598,13 @@ if (props.vendor === 'huawei') {
     <security-rule
       v-model:isShow="isShowSecurityRule"
       :loading="securityRuleLoading"
-      dialog-width="1500"
+      dialog-width="1680"
       :active-type="activeType"
       :title="t(activeType === 'egress' ? `${dataId ? '编辑' : '添加'}出站规则` : `${dataId ? '编辑' : '添加'}入站规则`)"
+      :is-edit="!!dataId"
       :vendor="vendor"
       @submit="handleSubmitRule"
+      :related-security-groups="props.relatedSecurityGroups"
     />
 
 

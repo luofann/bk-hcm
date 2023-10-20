@@ -103,7 +103,7 @@ func (g *Gcp) AssociateEip(
 		cts.Kit.Header(),
 		&core.ListReq{
 			Filter: tools.EqualExpression("network_interface_id", req.NetworkInterfaceID),
-			Page:   core.DefaultBasePage,
+			Page:   core.NewDefaultBasePage(),
 		},
 	)
 	if err != nil {
@@ -155,7 +155,7 @@ func (g *Gcp) DisassociateEip(
 		cts.Kit.Header(),
 		&datarelproto.EipCvmRelListReq{
 			Filter: tools.ContainersExpression("eip_id", []string{req.EipID}),
-			Page:   core.DefaultBasePage,
+			Page:   core.NewDefaultBasePage(),
 		},
 	)
 	if len(rels.Details) == 0 {
@@ -191,7 +191,7 @@ func (g *Gcp) DisassociateEip(
 }
 
 // CreateEip ...
-func (g *Gcp) CreateEip(cts *rest.Contexts) (interface{}, error) {
+func (g *Gcp) CreateEip(cts *rest.Contexts, bkBizID int64) (interface{}, error) {
 	req := new(cloudproto.GcpEipCreateReq)
 	if err := cts.DecodeInto(req); err != nil {
 		return nil, err
@@ -199,18 +199,6 @@ func (g *Gcp) CreateEip(cts *rest.Contexts) (interface{}, error) {
 
 	if err := req.Validate(); err != nil {
 		return nil, errf.NewFromErr(errf.InvalidParameter, err)
-	}
-
-	bkBizID, err := cts.PathParameter("bk_biz_id").Int64()
-	if err != nil {
-		return nil, errf.NewFromErr(errf.DecodeRequestFailed, err)
-	}
-
-	// validate biz and authorize
-	authRes := meta.ResourceAttribute{Basic: &meta.Basic{Type: meta.Eip, Action: meta.Create}, BizID: bkBizID}
-	err = g.authorizer.AuthorizeWithPerm(cts.Kit, authRes)
-	if err != nil {
-		return nil, err
 	}
 
 	resp, err := g.client.HCService().Gcp.Eip.CreateEip(
@@ -249,7 +237,7 @@ func (g *Gcp) RetrieveEip(cts *rest.Contexts, eipID string, cvmID string) (*clou
 	rels, err := g.client.DataService().Global.NetworkInterfaceCvmRel.List(
 		cts.Kit.Ctx,
 		cts.Kit.Header(),
-		&core.ListReq{Filter: tools.ContainersExpression("cvm_id", []string{cvmID}), Page: core.DefaultBasePage},
+		&core.ListReq{Filter: tools.ContainersExpression("cvm_id", []string{cvmID}), Page: core.NewDefaultBasePage()},
 	)
 	if err != nil {
 		return nil, err
@@ -287,7 +275,7 @@ func (g *Gcp) RetrieveEip(cts *rest.Contexts, eipID string, cvmID string) (*clou
 					},
 				}},
 			},
-		}, Page: core.DefaultBasePage})
+		}, Page: core.NewDefaultBasePage()})
 	if err != nil {
 		return nil, err
 	}

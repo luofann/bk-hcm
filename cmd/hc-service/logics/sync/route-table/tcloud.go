@@ -31,8 +31,8 @@ import (
 	dataservice "hcm/pkg/api/data-service"
 	protocloud "hcm/pkg/api/data-service/cloud"
 	dataproto "hcm/pkg/api/data-service/cloud/route-table"
-	hcservice "hcm/pkg/api/hc-service"
 	hcroutetable "hcm/pkg/api/hc-service/route-table"
+	hcservice "hcm/pkg/api/hc-service/vpc"
 	dataclient "hcm/pkg/client/data-service"
 	"hcm/pkg/criteria/constant"
 	"hcm/pkg/criteria/enumor"
@@ -274,7 +274,7 @@ func UpdateSubnetRouteTableByIDs(kt *kit.Kit, vendor enumor.Vendor, subnetMap ma
 				},
 			},
 		},
-		Page: core.DefaultBasePage,
+		Page: core.NewDefaultBasePage(),
 	}
 	subnetList, err := dataCli.Global.Subnet.List(kt.Ctx, kt.Header(), subnetListReq)
 	if err != nil {
@@ -303,7 +303,7 @@ func UpdateSubnetRouteTableByIDs(kt *kit.Kit, vendor enumor.Vendor, subnetMap ma
 				},
 			},
 		},
-		Page: core.DefaultBasePage,
+		Page: core.NewDefaultBasePage(),
 	}
 	routeTableList, err := dataCli.Global.RouteTable.List(kt.Ctx, kt.Header(), rtListReq)
 	if err != nil {
@@ -667,8 +667,7 @@ func BatchSyncTCloudRoute(kt *kit.Kit, req *hcroutetable.TCloudRouteTableSyncReq
 		updateReq := &dataproto.TCloudRouteBatchUpdateReq{
 			TCloudRoutes: updateResources,
 		}
-		if err = dataCli.TCloud.RouteTable.BatchUpdateRoute(kt.Ctx, kt.Header(), routeTableID,
-			updateReq); err != nil {
+		if err = dataCli.TCloud.RouteTable.BatchUpdateRoute(kt, routeTableID, updateReq); err != nil {
 			logs.Errorf("%s-routetable-route batch compare db update failed. accountID: %s, region: %s, "+
 				"routeTableID: %s, err: %v", enumor.TCloud, req.AccountID, req.Region, routeTableID, err)
 			return err
@@ -682,8 +681,7 @@ func BatchSyncTCloudRoute(kt *kit.Kit, req *hcroutetable.TCloudRouteTableSyncReq
 				TCloudRoutes: newCreateRes,
 			}
 
-			if _, err = dataCli.TCloud.RouteTable.BatchCreateRoute(kt.Ctx, kt.Header(),
-				routeTableID, createReq); err != nil {
+			if _, err = dataCli.TCloud.RouteTable.BatchCreateRoute(kt, routeTableID, createReq); err != nil {
 				logs.Errorf("%s-routetable-route batch compare db create failed. accountID: %s, region: %s, "+
 					"routeTableID: %s, err: %v", enumor.TCloud, req.AccountID, req.Region, routeTableID, err)
 				return err
@@ -703,8 +701,7 @@ func BatchSyncTCloudRoute(kt *kit.Kit, req *hcroutetable.TCloudRouteTableSyncReq
 		deleteReq := &dataservice.BatchDeleteReq{
 			Filter: tools.ContainersExpression("id", deleteIDs),
 		}
-		if err = dataCli.TCloud.RouteTable.BatchDeleteRoute(kt.Ctx, kt.Header(), routeTableID,
-			deleteReq); err != nil {
+		if err = dataCli.TCloud.RouteTable.BatchDeleteRoute(kt, routeTableID, deleteReq); err != nil {
 			logs.Errorf("%s-routetable-route batch compare db delete failed. accountID: %s, region: %s, "+
 				"routeTableID: %s, delIDs: %v, err: %v", enumor.TCloud, req.AccountID, req.Region, routeTableID,
 				deleteIDs, err)
@@ -805,7 +802,7 @@ func BatchCreateTCloudRoute(kt *kit.Kit, newID string, list *routetable.TCloudRo
 	createReq := &dataproto.TCloudRouteBatchCreateReq{
 		TCloudRoutes: createRes,
 	}
-	if _, err := dataCli.TCloud.RouteTable.BatchCreateRoute(kt.Ctx, kt.Header(), newID, createReq); err != nil {
+	if _, err := dataCli.TCloud.RouteTable.BatchCreateRoute(kt, newID, createReq); err != nil {
 		return err
 	}
 

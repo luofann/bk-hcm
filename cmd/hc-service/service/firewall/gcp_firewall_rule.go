@@ -37,8 +37,6 @@ import (
 	"hcm/pkg/kit"
 	"hcm/pkg/logs"
 	"hcm/pkg/rest"
-
-	"google.golang.org/api/compute/v1"
 )
 
 // InitFirewallService initial the security group service
@@ -214,12 +212,12 @@ func (f *firewall) CreateGcpFirewallRule(cts *rest.Contexts) (interface{}, error
 		return nil, errf.NewFromErr(errf.InvalidParameter, err)
 	}
 
-	item, err := f.createFirewallRule(cts, req)
+	vpc, err := f.getVpcByCloudID(cts.Kit, req.CloudVpcID)
 	if err != nil {
 		return nil, err
 	}
 
-	vpcID, err := f.getVpcIDByCloudVpcID(cts.Kit, req.CloudVpcID)
+	item, err := f.createFirewallRule(cts, req, vpc.Extension.SelfLink)
 	if err != nil {
 		return nil, err
 	}
@@ -230,8 +228,9 @@ func (f *firewall) CreateGcpFirewallRule(cts *rest.Contexts) (interface{}, error
 		Name:                  item.Name,
 		Priority:              item.Priority,
 		Memo:                  item.Description,
-		CloudVpcID:            item.Network,
-		VpcId:                 vpcID,
+		CloudVpcID:            req.CloudVpcID,
+		VpcId:                 vpc.ID,
+		VpcSelfLink:           vpc.Extension.SelfLink,
 		SourceRanges:          item.SourceRanges,
 		BkBizID:               req.BkBizID,
 		DestinationRanges:     item.DestinationRanges,
@@ -277,20 +276,21 @@ func (f *firewall) CreateGcpFirewallRule(cts *rest.Contexts) (interface{}, error
 		return nil, err
 	}
 
-	return result, nil
+	return &core.CreateResult{ID: result.IDs[0]}, nil
 }
 
-func (f *firewall) createFirewallRule(cts *rest.Contexts, req *proto.GcpFirewallRuleCreateReq) (*compute.Firewall,
-	error) {
+func (f *firewall) createFirewallRule(cts *rest.Contexts, req *proto.GcpFirewallRuleCreateReq, vpcSelfLink string) (
+	firewallrule.GcpFirewall, error) {
 
 	client, err := f.ad.Gcp(cts.Kit, req.AccountID)
 	if err != nil {
-		return nil, err
+		return firewallrule.GcpFirewall{}, err
 	}
 
 	opt := &firewallrule.CreateOption{
+		Type:              req.Type,
 		Name:              req.Name,
-		CloudVpcID:        req.CloudVpcID,
+		VpcSelfLink:       vpcSelfLink,
 		Description:       req.Memo,
 		Priority:          req.Priority,
 		SourceTags:        req.SourceTags,
@@ -304,38 +304,37 @@ func (f *firewall) createFirewallRule(cts *rest.Contexts, req *proto.GcpFirewall
 	ruleID, err := client.CreateFirewallRule(cts.Kit, opt)
 	if err != nil {
 		logs.Errorf("request gcp create firewall rule failed, err: %v, rid: %s", err, cts.Kit.Rid)
-		return nil, err
+		return firewallrule.GcpFirewall{}, err
 	}
 
 	items, _, err := client.ListFirewallRule(cts.Kit, &firewallrule.ListOption{
 		CloudIDs: []uint64{ruleID},
 	})
 	if err != nil {
-		return nil, err
+		return firewallrule.GcpFirewall{}, err
 	}
 
 	if len(items) == 0 {
-		return nil, fmt.Errorf("create firewall rule success, but list failed, ruleID: %d", ruleID)
+		return firewallrule.GcpFirewall{}, fmt.Errorf("create firewall rule success, but list failed, ruleID: %d", ruleID)
 	}
 
 	return items[0], nil
 }
 
-func (f *firewall) getVpcIDByCloudVpcID(kt *kit.Kit, cloudVpcID string) (string, error) {
+func (f *firewall) getVpcByCloudID(kt *kit.Kit, cloudVpcID string) (*corecloud.Vpc[corecloud.GcpVpcExtension], error) {
 	req := &core.ListReq{
 		Filter: tools.EqualExpression("cloud_id", cloudVpcID),
-		Page:   core.DefaultBasePage,
-		Fields: []string{"id"},
+		Page:   core.NewDefaultBasePage(),
 	}
-	result, err := f.dataCli.Global.Vpc.List(kt.Ctx, kt.Header(), req)
+	result, err := f.dataCli.Gcp.Vpc.ListVpcExt(kt.Ctx, kt.Header(), req)
 	if err != nil {
 		logs.Errorf("request dataservice to list vpc failed, err: %v, req: %v, rid: %s", err, req, kt.Rid)
-		return "", err
+		return nil, err
 	}
 
 	if len(result.Details) == 0 {
-		return "", errf.Newf(errf.RecordNotFound, "vpc(cloud_id=%s) not found", cloudVpcID)
+		return nil, errf.Newf(errf.RecordNotFound, "vpc(cloud_id=%s) not found", cloudVpcID)
 	}
 
-	return result.Details[0].CloudID, nil
+	return &result.Details[0], nil
 }

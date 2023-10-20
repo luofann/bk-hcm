@@ -471,6 +471,7 @@ type Web struct {
 	BkLoginUrl        string `yaml:"bkLoginUrl"`
 	BkComponentApiUrl string `yaml:"bkComponentApiUrl"`
 	BkItsmUrl         string `yaml:"bkItsmUrl"`
+	BkDomain          string `yaml:"bkDomain"`
 }
 
 func (s Web) validate() error {
@@ -484,6 +485,10 @@ func (s Web) validate() error {
 
 	if len(s.BkItsmUrl) == 0 {
 		return errors.New("bk_itsm_url is not set")
+	}
+
+	if len(s.BkDomain) == 0 {
+		return errors.New("bk_domain is not set")
 	}
 
 	return nil
@@ -609,4 +614,59 @@ func (c BillConfig) validate() error {
 	}
 
 	return nil
+}
+
+// ApiGateway defines the api gateway config.
+type ApiGateway struct {
+	// Endpoints is a seed list of host:port addresses of api gateway.
+	Endpoints []string `yaml:"endpoints"`
+	// AppCode is the BlueKing app code of hcm to request api gateway.
+	AppCode string `yaml:"appCode"`
+	// AppSecret is the BlueKing app secret of hcm to request api gateway.
+	AppSecret string `yaml:"appSecret"`
+	// User is the BlueKing user of hcm to request api gateway.
+	User string `yaml:"user"`
+	// BkTicket is the BlueKing access ticket of hcm to request api gateway.
+	BkTicket string `yaml:"bkTicket"`
+	// BkToken is the BlueKing access token of hcm to request api gateway.
+	BkToken string    `yaml:"bkToken"`
+	TLS     TLSConfig `yaml:"tls"`
+}
+
+// validate hcm runtime.
+func (gt ApiGateway) validate() error {
+	if len(gt.Endpoints) == 0 {
+		return errors.New("endpoints is not set")
+	}
+	if len(gt.AppCode) == 0 {
+		return errors.New("app code is not set")
+	}
+	if len(gt.AppSecret) == 0 {
+		return errors.New("app secret is not set")
+	}
+
+	if len(gt.BkToken) != 0 && len(gt.BkTicket) != 0 {
+		return errors.New("bkToken or bkTicket only one is needed")
+	}
+
+	if err := gt.TLS.validate(); err != nil {
+		return fmt.Errorf("validate tls failed, err: %v", err)
+	}
+	return nil
+}
+
+// GetAuthValue get auth value.
+func (gt ApiGateway) GetAuthValue() string {
+
+	if len(gt.BkTicket) != 0 {
+		return fmt.Sprintf("{\"bk_app_code\": \"%s\", \"bk_app_secret\": \"%s\", \"bk_ticket\":\"%s\"}",
+			gt.AppCode, gt.AppSecret, gt.BkTicket)
+	}
+
+	if len(gt.BkToken) != 0 {
+		return fmt.Sprintf("{\"bk_app_code\": \"%s\", \"bk_app_secret\": \"%s\", \"bk_token\":\"%s\"}",
+			gt.AppCode, gt.AppSecret, gt.BkToken)
+	}
+
+	return fmt.Sprintf("{\"bk_app_code\": \"%s\", \"bk_app_secret\": \"%s\"}", gt.AppCode, gt.AppSecret)
 }

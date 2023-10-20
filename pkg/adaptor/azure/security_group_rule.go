@@ -22,6 +22,7 @@ package azure
 import (
 	"fmt"
 
+	securitygroup "hcm/pkg/adaptor/types/security-group"
 	securitygrouprule "hcm/pkg/adaptor/types/security-group-rule"
 	"hcm/pkg/criteria/errf"
 	"hcm/pkg/kit"
@@ -34,7 +35,7 @@ import (
 // CreateSecurityGroupRule create security group rule.
 // reference: https://learn.microsoft.com/en-us/rest/api/virtualnetwork/network-security-groups/create-or-update
 func (az *Azure) CreateSecurityGroupRule(kt *kit.Kit, opt *securitygrouprule.AzureCreateOption) (
-	[]*securitygrouprule.AzureSecurityRule, error) {
+	[]*securitygrouprule.AzureSGRule, error) {
 
 	if opt == nil {
 		return nil, errf.New(errf.InvalidParameter, "security group rule create option is required")
@@ -83,7 +84,7 @@ func (az *Azure) CreateSecurityGroupRule(kt *kit.Kit, opt *securitygrouprule.Azu
 		return nil, err
 	}
 
-	result := make([]*securitygrouprule.AzureSecurityRule, 0)
+	result := make([]*securitygrouprule.AzureSGRule, 0)
 	for _, v := range resp.SecurityGroup.Properties.SecurityRules {
 		if nameMap[converter.PtrToVal(v.Name)] {
 			result = append(result, az.converCloudToSecurityRule(v))
@@ -169,6 +170,37 @@ func (az *Azure) UpdateSecurityGroupRule(kt *kit.Kit, opt *securitygrouprule.Azu
 		return err
 	}
 
+	if err = modifySgRule(sg, opt); err != nil {
+		return err
+	}
+
+	client, err := az.clientSet.securityGroupClient()
+	if err != nil {
+		return fmt.Errorf("new security group client failed, err: %v", err)
+	}
+
+	req := armnetwork.SecurityGroup{
+		Location: &opt.Region,
+		Properties: &armnetwork.SecurityGroupPropertiesFormat{
+			SecurityRules: sg.SecurityRules,
+		},
+	}
+	poller, err := client.BeginCreateOrUpdate(kt.Ctx, opt.ResourceGroupName, *sg.Name, req, nil)
+	if err != nil {
+		logs.Errorf("request to BeginCreateOrUpdate failed, err: %v, rid: %s", err, kt.Rid)
+		return err
+	}
+
+	_, err = poller.PollUntilDone(kt.Ctx, nil)
+	if err != nil {
+		logs.Errorf("pull the BeginCreateOrUpdate result failed, err: %v, rid: %s", err, kt.Rid)
+		return err
+	}
+
+	return nil
+}
+
+func modifySgRule(sg *securitygroup.AzureSecurityGroup, opt *securitygrouprule.AzureUpdateOption) error {
 	exist := false
 	for _, rule := range sg.SecurityRules {
 		if SPtrToLowerNoSpaceStr(rule.ID) == opt.Rule.CloudID {
@@ -217,29 +249,6 @@ func (az *Azure) UpdateSecurityGroupRule(kt *kit.Kit, opt *securitygrouprule.Azu
 
 	if !exist {
 		return errf.Newf(errf.RecordNotFound, "security group rule: %s not found", opt.Rule.CloudID)
-	}
-
-	client, err := az.clientSet.securityGroupClient()
-	if err != nil {
-		return fmt.Errorf("new security group client failed, err: %v", err)
-	}
-
-	req := armnetwork.SecurityGroup{
-		Location: &opt.Region,
-		Properties: &armnetwork.SecurityGroupPropertiesFormat{
-			SecurityRules: sg.SecurityRules,
-		},
-	}
-	poller, err := client.BeginCreateOrUpdate(kt.Ctx, opt.ResourceGroupName, *sg.Name, req, nil)
-	if err != nil {
-		logs.Errorf("request to BeginCreateOrUpdate failed, err: %v, rid: %s", err, kt.Rid)
-		return err
-	}
-
-	_, err = poller.PollUntilDone(kt.Ctx, nil)
-	if err != nil {
-		logs.Errorf("pull the BeginCreateOrUpdate result failed, err: %v, rid: %s", err, kt.Rid)
-		return err
 	}
 
 	return nil
@@ -305,7 +314,7 @@ func (az *Azure) DeleteSecurityGroupRule(kt *kit.Kit, opt *securitygrouprule.Azu
 
 // ListSecurityGroupRule list security group rule.
 // reference: https://learn.microsoft.com/en-us/rest/api/virtualnetwork/network-security-groups/list-all
-func (az *Azure) ListSecurityGroupRule(kt *kit.Kit, opt *securitygrouprule.AzureListOption) ([]*securitygrouprule.AzureSecurityRule,
+func (az *Azure) ListSecurityGroupRule(kt *kit.Kit, opt *securitygrouprule.AzureListOption) ([]*securitygrouprule.AzureSGRule,
 	error) {
 
 	if opt == nil {
@@ -321,7 +330,7 @@ func (az *Azure) ListSecurityGroupRule(kt *kit.Kit, opt *securitygrouprule.Azure
 		return nil, err
 	}
 
-	securityRules := make([]*securitygrouprule.AzureSecurityRule, 0)
+	securityRules := make([]*securitygrouprule.AzureSGRule, 0)
 	for _, v := range sg.SecurityRules {
 		securityRules = append(securityRules, az.converCloudToSecurityRule(v))
 	}
@@ -329,8 +338,8 @@ func (az *Azure) ListSecurityGroupRule(kt *kit.Kit, opt *securitygrouprule.Azure
 	return securityRules, nil
 }
 
-func (az *Azure) converCloudToSecurityRule(cloud *armnetwork.SecurityRule) *securitygrouprule.AzureSecurityRule {
-	return &securitygrouprule.AzureSecurityRule{
+func (az *Azure) converCloudToSecurityRule(cloud *armnetwork.SecurityRule) *securitygrouprule.AzureSGRule {
+	return &securitygrouprule.AzureSGRule{
 		ID:                                   SPtrToLowerSPtr(cloud.ID),
 		Etag:                                 cloud.Etag,
 		Name:                                 SPtrToLowerSPtr(cloud.Name),

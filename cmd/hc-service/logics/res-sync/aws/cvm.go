@@ -76,6 +76,12 @@ func (cli *client) Cvm(kt *kit.Kit, params *SyncBaseParams, opt *SyncCvmOption) 
 	addSlice, updateMap, delCloudIDs := common.Diff[typescvm.AwsCvm, corecvm.Cvm[cvm.AwsCvmExtension]](
 		cvmFromCloud, cvmFromDB, isCvmChange)
 
+	if len(delCloudIDs) > 0 {
+		if err = cli.deleteCvm(kt, params.AccountID, params.Region, delCloudIDs); err != nil {
+			return nil, err
+		}
+	}
+
 	if len(addSlice) > 0 {
 		if err = cli.createCvm(kt, params.AccountID, params.Region, addSlice); err != nil {
 			return nil, err
@@ -84,12 +90,6 @@ func (cli *client) Cvm(kt *kit.Kit, params *SyncBaseParams, opt *SyncCvmOption) 
 
 	if len(updateMap) > 0 {
 		if err = cli.updateCvm(kt, params.AccountID, params.Region, updateMap); err != nil {
-			return nil, err
-		}
-	}
-
-	if len(delCloudIDs) > 0 {
-		if err := cli.deleteCvm(kt, params.AccountID, params.Region, delCloudIDs); err != nil {
 			return nil, err
 		}
 	}
@@ -528,8 +528,12 @@ func (cli *client) listCvmFromCloud(kt *kit.Kit, params *SyncBaseParams) ([]type
 		Region:   params.Region,
 		CloudIDs: params.CloudIDs,
 	}
-	result, _, err := cli.cloudCli.ListCvmNew(kt, opt)
+	result, _, err := cli.cloudCli.ListCvm(kt, opt)
 	if err != nil {
+		if strings.Contains(err.Error(), aws.ErrCvmNotFound) {
+			return make([]typescvm.AwsCvm, 0), nil
+		}
+
 		logs.Errorf("[%s] list cvm from cloud failed, err: %v, account: %s, opt: %v, rid: %s", enumor.Aws,
 			err, params.AccountID, opt, kt.Rid)
 		return nil, err
@@ -566,7 +570,7 @@ func (cli *client) listCvmFromDB(kt *kit.Kit, params *SyncBaseParams) (
 				},
 			},
 		},
-		Page: core.DefaultBasePage,
+		Page: core.NewDefaultBasePage(),
 	}
 	result, err := cli.dbCli.Aws.Cvm.ListCvmExt(kt.Ctx, kt.Header(), req)
 	if err != nil {
@@ -645,29 +649,17 @@ func (cli *client) listRemoveCvmID(kt *kit.Kit, params *SyncBaseParams) ([]strin
 	}
 
 	delCloudIDs := make([]string, 0)
-	cloudIDs := params.CloudIDs
-	for {
+	for _, one := range params.CloudIDs {
 		opt := &typescvm.AwsListOption{
 			Region:   params.Region,
-			CloudIDs: params.CloudIDs,
+			CloudIDs: []string{one},
 		}
-
-		_, _, err := cli.cloudCli.ListCvmNew(kt, opt)
+		_, _, err := cli.cloudCli.ListCvm(kt, opt)
 		if err != nil {
-			if strings.Contains(err.Error(), aws.ErrVpcNotFound) {
-				var delCloudID string
-				cloudIDs, delCloudID = removeNotFoundCloudID(cloudIDs, err)
-				delCloudIDs = append(delCloudIDs, delCloudID)
-
-				continue
+			if strings.Contains(err.Error(), aws.ErrCvmNotFound) {
+				delCloudIDs = append(delCloudIDs, one)
 			}
-
-			logs.Errorf("[%s] list cvm from cloud failed, err: %v, account: %s, opt: %v, rid: %s", enumor.Aws, err,
-				params.AccountID, opt, kt.Rid)
-			return nil, err
 		}
-
-		break
 	}
 
 	return delCloudIDs, nil

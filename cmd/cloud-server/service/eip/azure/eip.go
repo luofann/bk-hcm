@@ -104,7 +104,7 @@ func (a *Azure) AssociateEip(
 		cts.Kit.Header(),
 		&core.ListReq{
 			Filter: tools.EqualExpression("network_interface_id", req.NetworkInterfaceID),
-			Page:   core.DefaultBasePage,
+			Page:   core.NewDefaultBasePage(),
 		},
 	)
 	if err != nil {
@@ -156,7 +156,7 @@ func (a *Azure) DisassociateEip(
 		cts.Kit.Header(),
 		&datarelproto.EipCvmRelListReq{
 			Filter: tools.ContainersExpression("eip_id", []string{req.EipID}),
-			Page:   core.DefaultBasePage,
+			Page:   core.NewDefaultBasePage(),
 		},
 	)
 	if len(rels.Details) == 0 {
@@ -192,7 +192,7 @@ func (a *Azure) DisassociateEip(
 }
 
 // CreateEip ...
-func (a *Azure) CreateEip(cts *rest.Contexts) (interface{}, error) {
+func (a *Azure) CreateEip(cts *rest.Contexts, bkBizID int64) (interface{}, error) {
 	req := new(cloudproto.AzureEipCreateReq)
 	if err := cts.DecodeInto(req); err != nil {
 		return nil, err
@@ -202,19 +202,7 @@ func (a *Azure) CreateEip(cts *rest.Contexts) (interface{}, error) {
 		return nil, errf.NewFromErr(errf.InvalidParameter, err)
 	}
 
-	bkBizID, err := cts.PathParameter("bk_biz_id").Int64()
-	if err != nil {
-		return nil, errf.NewFromErr(errf.DecodeRequestFailed, err)
-	}
-
-	if err = a.checkAzureEipParams(req); err != nil {
-		return nil, err
-	}
-
-	// validate biz and authorize
-	authRes := meta.ResourceAttribute{Basic: &meta.Basic{Type: meta.Eip, Action: meta.Create}, BizID: bkBizID}
-	err = a.authorizer.AuthorizeWithPerm(cts.Kit, authRes)
-	if err != nil {
+	if err := a.checkAzureEipParams(req); err != nil {
 		return nil, err
 	}
 
@@ -259,7 +247,7 @@ func (a *Azure) RetrieveEip(cts *rest.Contexts, eipID string, cvmID string) (*cl
 	rels, err := a.client.DataService().Global.NetworkInterfaceCvmRel.List(
 		cts.Kit.Ctx,
 		cts.Kit.Header(),
-		&core.ListReq{Filter: tools.ContainersExpression("cvm_id", []string{cvmID}), Page: core.DefaultBasePage},
+		&core.ListReq{Filter: tools.ContainersExpression("cvm_id", []string{cvmID}), Page: core.NewDefaultBasePage()},
 	)
 	if err != nil {
 		return nil, err
@@ -297,7 +285,7 @@ func (a *Azure) RetrieveEip(cts *rest.Contexts, eipID string, cvmID string) (*cl
 					},
 				}},
 			},
-		}, Page: core.DefaultBasePage})
+		}, Page: core.NewDefaultBasePage()})
 	if err != nil {
 		return nil, err
 	}

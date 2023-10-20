@@ -17,6 +17,7 @@
  * to the current version of the project delivered to anyone in the future.
  */
 
+// Package sys ...
 package sys
 
 import (
@@ -56,17 +57,17 @@ func (s *Sys) GetSystemToken(ctx context.Context) (string, error) {
 3. 因为资源的名称在系统中是唯一的，所以可能遇到循环依赖的情况（如两个资源分别更新成对方的名字），此时需要引入一个中间变量进行二次更新
 
 综上，具体操作顺序如下：
-  1. 注册hcm系统信息
-  2. 删除Action。该操作无依赖
-  3. 更新ResourceType，先更新名字冲突的(包括需要删除的)为中间值，再更新其它的。该操作无依赖
-  4. 新增ResourceType。该操作依赖于上一步中同名的ResourceType均已更新
-  5. 更新InstanceSelection，先更新名字冲突的(包括需要删除的)为中间值，再更新其它的。该操作依赖于上一步中的ResourceType均已新增
-  6. 新增InstanceSelection。该操作依赖于上一步中同名的InstanceSelection均已更新+第4步中的ResourceType均已新增
-  7. 更新ResourceAction，先更新名字冲突的为中间值，再更新其它的。该操作依赖于第2步中同名Action已删除+上一步中InstanceSelection已新增
-  8. 新增ResourceAction。该操作依赖于上一步中同名的ResourceAction均已更新+第6步中的InstanceSelection均已新增
-  9. 删除InstanceSelection。该操作依赖于第2步和第7步中的原本依赖了这些InstanceSelection的Action均已删除和更新
- 10. 删除ResourceType。该操作依赖于第5步和第9步中的原本依赖了这些ResourceType的InstanceSelection均已删除和更新
- 11. 注册ActionGroup、ResCreatorAction、CommonAction信息
+	1. 注册hcm系统信息
+	2. 删除Action。该操作无依赖
+	3. 更新ResourceType，先更新名字冲突的(包括需要删除的)为中间值，再更新其它的。该操作无依赖
+	4. 新增ResourceType。该操作依赖于上一步中同名的ResourceType均已更新
+	5. 更新InstanceSelection，先更新名字冲突的(包括需要删除的)为中间值，再更新其它的。该操作依赖于上一步中的ResourceType均已新增
+	6. 新增InstanceSelection。该操作依赖于上一步中同名的InstanceSelection均已更新+第4步中的ResourceType均已新增
+	7. 更新ResourceAction，先更新名字冲突的为中间值，再更新其它的。该操作依赖于第2步中同名Action已删除+上一步中InstanceSelection已新增
+	8. 新增ResourceAction。该操作依赖于上一步中同名的ResourceAction均已更新+第6步中的InstanceSelection均已新增
+	9. 删除InstanceSelection。该操作依赖于第2步和第7步中的原本依赖了这些InstanceSelection的Action均已删除和更新
+	10. 删除ResourceType。该操作依赖于第5步和第9步中的原本依赖了这些ResourceType的InstanceSelection均已删除和更新
+	11. 注册ActionGroup、ResCreatorAction、CommonAction信息
 */
 
 // Register register auth model to iam.
@@ -207,31 +208,23 @@ func (s *Sys) crossCompareResTypes(registeredResourceTypes []client.ResourceType
 	}
 
 	// record the name and resource type id mapping to get the resource types whose name conflicts
-	resNameMap := make(map[string]client.TypeID)
-	resNameEnMap := make(map[string]client.TypeID)
+	resNameMap, resNameEnMap := make(map[string]client.TypeID), make(map[string]client.TypeID)
 	updateResPrevNameMap := make(map[client.TypeID]iamName)
-
-	newResTypes := make([]client.ResourceType, 0)
-	updateResTypes := make([]client.ResourceType, 0)
+	newResTypes, updateResTypes := make([]client.ResourceType, 0), make([]client.ResourceType, 0)
 
 	for _, resourceType := range GenerateStaticResourceTypes() {
 		resNameMap[resourceType.Name] = resourceType.ID
 		resNameEnMap[resourceType.NameEn] = resourceType.ID
-
 		// if current resource type is not registered, register it, otherwise, update it if its version is changed
 		registeredResType, exists := registeredResTypeMap[resourceType.ID]
 		if exists {
 			// registered resource type exists in current resource types, should not be removed
 			delete(registeredResTypeMap, resourceType.ID)
-
 			if s.compareResType(registeredResType, resourceType) {
 				continue
 			}
-
-			updateResPrevNameMap[resourceType.ID] = iamName{
-				Name:   registeredResType.Name,
-				NameEn: registeredResType.NameEn,
-			}
+			updateResPrevNameMap[resourceType.ID] = iamName{Name: registeredResType.Name,
+				NameEn: registeredResType.NameEn}
 			updateResTypes = append(updateResTypes, resourceType)
 			continue
 		}
@@ -254,7 +247,6 @@ func (s *Sys) crossCompareResTypes(registeredResourceTypes []client.ResourceType
 			isConflict = true
 			updateResType.NameEn = prevName.NameEn + "_"
 		}
-
 		if isConflict {
 			conflictResTypes = append(conflictResTypes, updateResType)
 		}
@@ -266,7 +258,6 @@ func (s *Sys) crossCompareResTypes(registeredResourceTypes []client.ResourceType
 	for resTypeID, resType := range registeredResTypeMap {
 		removedResTypeIDs[idx] = resTypeID
 		idx++
-
 		// if to remove resource type name conflicts with a valid one, change its name to an intermediate one first
 		isConflict := false
 
@@ -278,7 +269,6 @@ func (s *Sys) crossCompareResTypes(registeredResourceTypes []client.ResourceType
 			resType.NameEn += "_"
 			isConflict = true
 		}
-
 		if isConflict {
 			conflictResTypes = append(conflictResTypes, resType)
 		}
@@ -326,8 +316,7 @@ func (s *Sys) crossCompareInstSelections(registeredInstanceSelections []client.I
 	selectionNameEnMap := make(map[string]client.InstanceSelectionID)
 	updateSelectionPrevNameMap := make(map[client.InstanceSelectionID]iamName)
 
-	newInstSelections := make([]client.InstanceSelection, 0)
-	updateInstSelections := make([]client.InstanceSelection, 0)
+	newInstSelections, updateInstSelections := make([]client.InstanceSelection, 0), make([]client.InstanceSelection, 0)
 
 	for _, instanceSelection := range GenerateStaticInstanceSelections() {
 		selectionNameMap[instanceSelection.Name] = instanceSelection.ID
@@ -344,14 +333,10 @@ func (s *Sys) crossCompareInstSelections(registeredInstanceSelections []client.I
 				continue
 			}
 
-			updateSelectionPrevNameMap[instanceSelection.ID] = iamName{
-				Name:   selection.Name,
-				NameEn: selection.NameEn,
-			}
+			updateSelectionPrevNameMap[instanceSelection.ID] = iamName{Name: selection.Name, NameEn: selection.NameEn}
 			updateInstSelections = append(updateInstSelections, instanceSelection)
 			continue
 		}
-
 		newInstSelections = append(newInstSelections, instanceSelection)
 	}
 
@@ -382,10 +367,8 @@ func (s *Sys) crossCompareInstSelections(registeredInstanceSelections []client.I
 	for selectionID, selection := range registeredInstSelectionMap {
 		removedInstSelectionIDs[idx] = selectionID
 		idx++
-
 		// if to remove selection name conflicts with a valid one, change its name to an intermediate one first
 		isConflict := false
-
 		if _, exists := selectionNameMap[selection.Name]; exists {
 			selection.Name += "_"
 			isConflict = true
@@ -394,12 +377,10 @@ func (s *Sys) crossCompareInstSelections(registeredInstanceSelections []client.I
 			selection.NameEn += "_"
 			isConflict = true
 		}
-
 		if isConflict {
 			conflictSelections = append(conflictSelections, selection)
 		}
 	}
-
 	return newInstSelections, append(conflictSelections, updateInstSelections...), removedInstSelectionIDs
 }
 

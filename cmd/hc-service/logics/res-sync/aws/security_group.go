@@ -24,7 +24,6 @@ import (
 	"strings"
 
 	"hcm/cmd/hc-service/logics/res-sync/common"
-	securitygroupsync "hcm/cmd/hc-service/logics/sync/security-group"
 	"hcm/pkg/adaptor/aws"
 	securitygroup "hcm/pkg/adaptor/types/security-group"
 	"hcm/pkg/api/core"
@@ -74,6 +73,12 @@ func (cli *client) SecurityGroup(kt *kit.Kit, params *SyncBaseParams, opt *SyncS
 	addSlice, updateMap, delCloudIDs := common.Diff[securitygroup.AwsSG, cloudcore.SecurityGroup[cloudcore.AwsSecurityGroupExtension]](
 		sgFromCloud, sgFromDB, isSGChange)
 
+	if len(delCloudIDs) > 0 {
+		if err := cli.deleteSG(kt, params.AccountID, params.Region, delCloudIDs); err != nil {
+			return nil, err
+		}
+	}
+
 	if len(addSlice) > 0 {
 		_, err := cli.createSG(kt, params.AccountID, params.Region, addSlice)
 		if err != nil {
@@ -87,30 +92,29 @@ func (cli *client) SecurityGroup(kt *kit.Kit, params *SyncBaseParams, opt *SyncS
 		}
 	}
 
-	if len(delCloudIDs) > 0 {
-		if err := cli.deleteSG(kt, params.AccountID, params.Region, delCloudIDs); err != nil {
-			return nil, err
-		}
-	}
-
 	// 同步安全组规则
 	sgFromDB, err = cli.listSGFromDB(kt, params)
 	if err != nil {
 		return nil, err
 	}
-	req := &securitygroupsync.SyncAwsSecurityGroupOption{
+
+	cloudSGIDs := make([]string, 0, len(sgFromDB))
+	for _, one := range sgFromDB {
+		cloudSGIDs = append(cloudSGIDs, one.CloudID)
+	}
+
+	sgRuleParams := &SyncBaseParams{
 		AccountID: params.AccountID,
 		Region:    params.Region,
+		CloudIDs:  cloudSGIDs,
 	}
-	for _, one := range sgFromDB {
-		// TODO: sync-todo 安全组规则同步待优化为版本3
-		_, err := securitygroupsync.SyncAwsSGRule(kt, req, cli.cloudCli, cli.dbCli, one.ID)
-		if err != nil {
-			logs.Errorf("[%s] sync security group rule failed, err: %v, rid: %s", enumor.Aws,
-				err, kt.Rid)
-			return nil, err
-		}
+	_, err = cli.SecurityGroupRule(kt, sgRuleParams, &SyncSGRuleOption{})
+	if err != nil {
+		logs.Errorf("[%s] sg sync sgRule failed. err: %v, accountID: %s, region: %s, rid: %s",
+			err, enumor.Aws, params.AccountID, params.Region, kt.Rid)
+		return nil, err
 	}
+
 	return new(SyncResult), nil
 }
 
@@ -274,7 +278,7 @@ func (cli *client) listSGFromCloud(kt *kit.Kit, params *SyncBaseParams) ([]secur
 		Region:   params.Region,
 		CloudIDs: params.CloudIDs,
 	}
-	result, _, err := cli.cloudCli.ListSecurityGroupNew(kt, opt)
+	result, _, err := cli.cloudCli.ListSecurityGroup(kt, opt)
 	if err != nil {
 		if strings.Contains(err.Error(), aws.ErrSGNotFound) {
 			return nil, nil
@@ -316,7 +320,7 @@ func (cli *client) listSGFromDB(kt *kit.Kit, params *SyncBaseParams) (
 				},
 			},
 		},
-		Page: core.DefaultBasePage,
+		Page: core.NewDefaultBasePage(),
 	}
 	result, err := cli.dbCli.Aws.SecurityGroup.ListSecurityGroupExt(kt.Ctx, kt.Header(), req)
 	if err != nil {
@@ -407,7 +411,7 @@ func (cli *client) listRemoveSGID(kt *kit.Kit, params *SyncBaseParams) ([]string
 			Region:   params.Region,
 			CloudIDs: []string{one},
 		}
-		_, _, err := cli.cloudCli.ListSecurityGroupNew(kt, opt)
+		_, _, err := cli.cloudCli.ListSecurityGroup(kt, opt)
 		if err != nil {
 			if strings.Contains(err.Error(), aws.ErrSGNotFound) {
 				delCloudIDs = append(delCloudIDs, one)

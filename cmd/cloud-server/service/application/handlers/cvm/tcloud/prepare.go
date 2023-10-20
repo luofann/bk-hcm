@@ -22,8 +22,9 @@ package tcloud
 import (
 	"fmt"
 
-	proto "hcm/pkg/api/cloud-server/application"
+	proto "hcm/pkg/api/cloud-server/cvm"
 	"hcm/pkg/criteria/enumor"
+	"hcm/pkg/thirdparty/itsm"
 )
 
 // PrepareReq 预处理请求参数，比如敏感数据加密
@@ -59,4 +60,9 @@ func (a *ApplicationOfCreateTCloudCvm) PrepareReqFromContent() error {
 	a.req.ConfirmedPassword = password
 
 	return nil
+}
+
+// GetItsmApprover 获取itsm审批人
+func (a *ApplicationOfCreateTCloudCvm) GetItsmApprover(managers []string) []itsm.VariableApprover {
+	return a.GetItsmPlatformAndAccountApprover(managers, a.req.AccountID)
 }

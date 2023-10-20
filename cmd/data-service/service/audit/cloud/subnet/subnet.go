@@ -17,6 +17,7 @@
  * to the current version of the project delivered to anyone in the future.
  */
 
+// Package subnet ...
 package subnet
 
 import (
@@ -189,7 +190,7 @@ func (ad *Subnet) SubnetAssignAuditBuild(kt *kit.Kit, assigns []protoaudit.Cloud
 func ListSubnet(kt *kit.Kit, dao dao.Set, ids []string) (map[string]tablecloud.SubnetTable, error) {
 	opt := &types.ListOption{
 		Filter: tools.ContainersExpression("id", ids),
-		Page:   core.DefaultBasePage,
+		Page:   core.NewDefaultBasePage(),
 	}
 	list, err := dao.Subnet().List(kt, opt)
 	if err != nil {

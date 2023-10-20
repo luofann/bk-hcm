@@ -69,7 +69,7 @@ func (svc *netSvc) AssignNetworkInterfaceToBiz(cts *rest.Contexts) (interface{},
 				},
 			},
 		},
-		Page: core.DefaultBasePage,
+		Page: core.NewDefaultBasePage(),
 	}
 	result, err := svc.client.DataService().Global.NetworkInterface.List(cts.Kit.Ctx, cts.Kit.Header(), listReq)
 	if err != nil {
@@ -97,7 +97,7 @@ func (svc *netSvc) AssignNetworkInterfaceToBiz(cts *rest.Contexts) (interface{},
 		IDs:     req.NetworkInterfaceIDs,
 		BkBizID: req.BkBizID,
 	}
-	if err := svc.client.DataService().Global.NetworkInterface.BatchUpdateNetworkInterfaceCommonInfo(
+	if err := svc.client.DataService().Global.NetworkInterface.BatchUpdateNICommonInfo(
 		cts.Kit.Ctx, cts.Kit.Header(), update); err != nil {
 		logs.Errorf("batch update network_interface common info failed, req: %+v, err: %v, rid: %s", req, err,
 			cts.Kit.Rid)
