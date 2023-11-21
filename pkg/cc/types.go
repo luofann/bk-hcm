@@ -709,3 +709,56 @@ func (gt ApiGateway) GetAuthValue() string {
 
 	return fmt.Sprintf("{\"bk_app_code\": \"%s\", \"bk_app_secret\": \"%s\"}", gt.AppCode, gt.AppSecret)
 }
+
+// CloudSelection define cloud selection relation setting.
+type CloudSelection struct {
+	CoverRate           float64                  `json:"coverRate"`
+	CoverPingThreshHold []float64                `json:"coverPingThreshHold"`
+	DataSourceType      string                   `yaml:"dataSourceType"`
+	TableNames          CloudSelectionTableNames `json:"tableNames"`
+	BkBase              BkBase                   `yaml:"bkBase"`
+}
+
+// BkBase define bkbase relation setting.
+type BkBase struct {
+	DataToken  string `yaml:"dataToken"`
+	ApiGateway `yaml:"-"`
+}
+
+// Validate ...
+func (b BkBase) Validate() error {
+	if err := b.ApiGateway.validate(); err != nil {
+		return err
+	}
+
+	if len(b.DataToken) == 0 {
+		return errors.New("data token is required")
+	}
+
+	return nil
+}
+
+// Validate define cloud selection relation setting.
+func (c CloudSelection) Validate() error {
+	switch c.DataSourceType {
+	case "bk_base":
+		if err := c.BkBase.validate(); err != nil {
+			return err
+		}
+
+	default:
+		return fmt.Errorf("data source: %s not support", c.DataSourceType)
+	}
+
+	return nil
+}
+
+// CloudSelectionTableNames ...
+type CloudSelectionTableNames struct {
+	LatencyPingCountyIdc     string `json:"latencyPingCountyIdc"`
+	LatencyPingProvinceIdc   string `json:"latencyPingProvinceIdc"`
+	LatencyBizCountyIdc      string `json:"latencyBizCountyIdc"`
+	LatencyBizProvinceIdc    string `json:"latencyBizProvinceIdc"`
+	UserCountryDistribution  string `json:"userCountryDistribution"`
+	UserProvinceDistribution string `json:"userProvinceDistribution"`
+}
